@@ -92,10 +92,13 @@ class Call
 
     def initialize(cxn, cid)
         @cxn, @cid = cxn, cid
+        @retrans = nil
+        @t1, @t2 = 0.5, 32
     end
 
     def recv_request(method)
         data = @cxn.get_new_message @cid
+        @retrans = nil
         unless data["message"].request? and data["message"].sip_method.to_s == method
             raise
         end
@@ -107,8 +110,8 @@ class Call
         data
     end
 
-    def send(code)
-        @cxn.send("SIP/2.0 #{ code }\r
+    def send(code, retrans=nil)
+        msg = "SIP/2.0 #{ code }\r
 Via: #{ @last_Via }\r
 From: #{ @last_From }\r
 To: #{ @last_To };tag=6171SIPpTag001\r
@@ -116,7 +119,26 @@ Call-ID: #{ @cid }\r
 CSeq: #{ @last_CSeq }\r
 Contact: <sip:127.0.1.1:5060;transport=UDP>\r
 Content-Length: 0\r
-", @ip, @port)
+"
+    @cxn.send(msg, @ip, @port)
+    if retrans then
+        @retrans = true
+        Thread.new do
+            timer = @t1
+            sleep timer
+            while @retrans do
+                #puts "Retransmitting on call #{ @cid }"
+                @cxn.send(msg, @ip, @port)
+                timer *=2
+                if timer < @t2 then
+                    raise "Too many retransmits!"
+                end
+                sleep timer
+            end
+        end
+    end
+
     end
 
 end
+
