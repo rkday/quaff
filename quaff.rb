@@ -131,17 +131,18 @@ Content-Length: 0\r
     @cxn.send(msg, @ip, @port)
     if retrans then
         @retrans = true
-        Thread.new do
-            timer = @t1
-            sleep timer
-            while @retrans do
-                #puts "Retransmitting on call #{ @cid }"
-                @cxn.send(msg, @ip, @port)
-                timer *=2
-                if timer < @t2 then
-                    raise "Too many retransmits!"
-                end
+            Thread.new do
+                timer = @t1
                 sleep timer
+                while @retrans do
+                    #puts "Retransmitting on call #{ @cid }"
+                    @cxn.send(msg, @ip, @port)
+                    timer *=2
+                    if timer < @t2 then
+                        raise "Too many retransmits!"
+                    end
+                    sleep timer
+                end
             end
         end
     end
@@ -151,4 +152,3 @@ Content-Length: 0\r
     end
 
 end
-
