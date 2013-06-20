@@ -31,6 +31,7 @@ class Connection
         @p = OverSIP::SIP::MessageParser.new
         @messages = {}
         @call_ids = Queue.new
+        @dead_calls = {}
         start
     end
 
@@ -45,7 +46,7 @@ class Connection
                 if msg = @p.parsed then
                     @p.post_parsing
                     cid = msg.header "Call-ID"
-                    if cid then
+                    if cid and not @dead_calls.has_key? cid then
                         #puts message.method
                         unless @messages.has_key? cid then
                             @messages[cid] = Queue.new
@@ -81,6 +82,13 @@ class Connection
             puts "\n"
             puts h["message"].body
         end
+    end
+
+    def mark_call_dead(cid)
+        del @messages[cid]
+        now = Time.now
+        @dead_calls[cid] = now + 30
+        @dead_calls = @dead_calls.keep_if {|k, v| v > now}
     end
 end
 
@@ -138,6 +146,8 @@ Content-Length: 0\r
         end
     end
 
+    def end_call
+        @cxn.mark_call_dead @cid
     end
 
 end

@@ -11,3 +11,4 @@ call.send("200 OK", true)
 call.recv_request("ACK")
 call.recv_request("BYE")
 call.send("200 OK", true)
+call.end_call

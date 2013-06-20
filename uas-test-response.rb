@@ -17,3 +17,4 @@ if data["message"].header("X-Anticipated-Header").nil? then
 end
 call.recv_request("BYE")
 call.send("200 OK")
+call.end_call
