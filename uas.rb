@@ -1,6 +1,6 @@
 require './quaff'
 
-c = Connection.new(5060)
+c = SipConnection.new(5060)
 cid = c.get_new_call_id
 call = Call.new(c, cid)
 

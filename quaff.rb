@@ -24,11 +24,9 @@ require "oversip/sip/uac_request.rb"
 require 'socket'
 
 class Connection
-
     def initialize(lport)
         @cxn = UDPSocket.new
         @cxn.bind("0.0.0.0", lport)
-        @p = OverSIP::SIP::MessageParser.new
         @messages = {}
         @call_ids = Queue.new
         @dead_calls = {}
@@ -39,23 +37,14 @@ class Connection
         Thread.new do
             while 1 do
                 data, ip = @cxn.recvfrom(65535)
-                body = data.split("\r\n\r\n")[1]
-                @p.reset
-                nread = @p.execute(data,0)
-                #print @p.finished?
-                if msg = @p.parsed then
-                    @p.post_parsing
-                    cid = msg.header "Call-ID"
-                    if cid and not @dead_calls.has_key? cid then
-                        #puts message.method
-                        unless @messages.has_key? cid then
-                            @messages[cid] = Queue.new
-                            @call_ids.enq cid
-                        end
-                        @messages[cid].enq({"message" => msg, "body" => body, "source" => ip})
-                        #puts data
-                        #puts msg.body
+                msg = parse data
+                cid = message_identifier msg
+                if cid and not @dead_calls.has_key? cid then
+                    unless @messages.has_key? cid then
+                        @messages[cid] = Queue.new
+                        @call_ids.enq cid
                     end
+                    @messages[cid].enq({"message" => msg, "source" => ip})
                 end
             end
         end
@@ -73,19 +62,8 @@ class Connection
         @messages[cid].deq
     end
 
-    def state
-        while not @call_ids.empty?
-            cid = @call_ids.deq
-            puts cid
-            h = @messages[cid].deq
-            puts h["message"].to_s
-            puts "\n"
-            puts h["message"].body
-        end
-    end
-
     def mark_call_dead(cid)
-        del @messages[cid]
+        @messages.delete cid
         now = Time.now
         @dead_calls[cid] = now + 30
         @dead_calls = @dead_calls.keep_if {|k, v| v > now}
@@ -93,6 +71,22 @@ class Connection
 end
 
 class SipConnection < Connection
+    def parse(data)
+        @p = OverSIP::SIP::MessageParser.new
+        body = data.split("\r\n\r\n")[1]
+        nread = @p.execute(data,0)
+        if msg = @p.parsed then
+            @p.post_parsing
+            msg.body = body
+            return msg
+        else
+            raise "Parse failed! #{ @p.error }"
+        end
+    end
+
+    def message_identifier(msg)
+        msg.header "Call-ID"
+    end
 
 end
 

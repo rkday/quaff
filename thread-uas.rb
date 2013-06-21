@@ -1,6 +1,6 @@
 require './quaff'
 
-c = Connection.new(5060)
+c = SipConnection.new(5060)
 loop do
 cid = c.get_new_call_id
 Thread.new do
