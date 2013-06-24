@@ -23,35 +23,37 @@ require "oversip/sip/uac.rb"
 require "oversip/sip/uac_request.rb"
 require 'socket'
 
-class Connection
+class BaseConnection
     def initialize(lport)
-        @cxn = UDPSocket.new
-        @cxn.bind("0.0.0.0", lport)
+        initialize_connection lport
+        initialize_queues
+        start
+    end
+
+    def initialize_queues
         @messages = {}
         @call_ids = Queue.new
         @dead_calls = {}
-        start
+        @sockets
     end
 
     def start
         Thread.new do
             while 1 do
-                data, ip = @cxn.recvfrom(65535)
-                msg = parse data
-                cid = message_identifier msg
-                if cid and not @dead_calls.has_key? cid then
-                    unless @messages.has_key? cid then
-                        @messages[cid] = Queue.new
-                        @call_ids.enq cid
-                    end
-                    @messages[cid].enq({"message" => msg, "source" => ip})
-                end
+                recv_msg
             end
         end
     end
 
-    def send(data, ip, port)
-        @cxn.send(data, 0, ip, port)
+    def queue_msg(msg, source)
+        cid = @parser.message_identifier msg
+        if cid and not @dead_calls.has_key? cid then
+            unless @messages.has_key? cid then
+                @messages[cid] = Queue.new
+                @call_ids.enq cid
+            end
+            @messages[cid].enq({"message" => msg, "source" => source})
+        end
     end
 
     def get_new_call_id
@@ -70,17 +72,110 @@ class Connection
     end
 end
 
-class SipConnection < Connection
-    def parse(data)
+class TCPSIPConnection < BaseConnection
+    def initialize_connection(lport)
+        @cxn = TCPServer.new(lport)
+        @parser = SipParser.new
+        @sockets = []
+    end
+
+    def recv_msg
+        # This is subpar - should be event-driven
+        for sock in @sockets do
+            recv_msg_from_sock sock
+        end
+        begin
+            sock = @cxn.accept_nonblock
+            @sockets.push sock
+        rescue IO::WaitReadable, Errno::EINTR
+            sleep 0.3
+        end
+    end
+
+    def recv_msg_from_sock(sock)
+        msg = @parser.parse_start sock.gets
+        while msg.nil? do
+            msg = @parser.parse_partial sock.gets
+        end
+        queue_msg msg, sock
+    end
+    
+    def send(data, source)
+        source.puts(data)
+    end
+
+end
+
+class UDPSIPConnection < BaseConnection
+
+    def recv_msg
+        data, addrinfo = @cxn.recvfrom(65535)
+        ip, port = addrinfo[3], addrinfo[1]
+        source = [ip, port]
+        msg = @parser.parse_start(data)
+        queue_msg msg, source
+    end
+
+    def initialize_connection(lport)
+        @cxn = UDPSocket.new
+        @cxn.bind('0.0.0.0', lport)
+        @sockets = []
+        @parser = SipParser.new
+    end
+
+    def send(data, source)
+        ip, port = source
+        @cxn.send(data, 0, ip, port)
+    end
+
+end
+
+class SipParser
+    def parse_start(data)
         @p = OverSIP::SIP::MessageParser.new
-        body = data.split("\r\n\r\n")[1]
-        nread = @p.execute(data,0)
-        if msg = @p.parsed then
-            @p.post_parsing
-            msg.body = body
-            return msg
+        @nread = 0
+        @buf = ""
+        @msg = nil
+        parse_partial data
+    end
+
+    def parse_partial(data)
+        @buf << data
+        if not @p.finished? then
+            @nread = @p.execute(@buf,@nread)
+            if @p.finished?
+                if @p.parsed.header("Content-Length").to_i == 0 then
+                    return @p.parsed
+                elsif data.index("\r\n\r\n") then
+                    msg = @p.parsed
+                    msg.body = data.split("\r\n\r\n")[1]
+                    return msg
+                else
+                    return nil
+                end
+            else
+                return nil
+            end
         else
-            raise "Parse failed! #{ @p.error }"
+            @p.post_parsing
+            @msg ||= @p.parsed
+            body_len = @msg.header("Content-Length").to_i
+
+            if @msg.body.nil?
+                @msg.body = ""
+            end
+
+            if data.index("\r\n\r\n") then
+                @msg.body = data.split("\r\n\r\n")[1]
+            else
+                @msg.body << data
+            end
+
+            if @msg.body.to_s.length >= body_len
+                return @msg
+            else
+                return nil
+            end
         end
     end
 
@@ -104,7 +199,8 @@ class Call
         unless data["message"].request? and data["message"].sip_method.to_s == method
             raise
         end
-        @port, @ip = data["source"][1], data["source"][3]
+        @src = data['source']
+        #@port, @ip = data["source"][1], data["source"][3]
         @last_To = data["message"].header("To")
         @last_From = data["message"].header("From")
         @last_Via = data["message"].header("Via")
@@ -121,8 +217,9 @@ Call-ID: #{ @cid }\r
 CSeq: #{ @last_CSeq }\r
 Contact: <sip:127.0.1.1:5060;transport=UDP>\r
 Content-Length: 0\r
+\r
 "
-    @cxn.send(msg, @ip, @port)
+    @cxn.send(msg, @src)
     if retrans then
         @retrans = true
             Thread.new do
@@ -130,7 +227,7 @@ Content-Length: 0\r
                 sleep timer
                 while @retrans do
                     #puts "Retransmitting on call #{ @cid }"
-                    @cxn.send(msg, @ip, @port)
+                    @cxn.send(msg, @src)
                     timer *=2
                     if timer < @t2 then
                         raise "Too many retransmits!"
