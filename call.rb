@@ -1,9 +1,13 @@
+require './utils.rb'
+
 class Call
 
-    def initialize(cxn, cid)
+    def initialize(cxn, cid, dn="5557777888")
         @cxn, @cid = cxn, cid
         @retrans = nil
         @t1, @t2 = 0.5, 32
+        @last_Via = "SIP/2.0/UDP 127.0.0.1:5060;branch=#{QuaffUtils.new_branch}"
+        @last_From = "quaff <sip:#{dn}@127.0.0.1>"
     end
 
     def recv_something
@@ -12,9 +16,19 @@ class Call
         @src = data['source']
         @last_To = data["message"].header("To")
         @last_From = data["message"].header("From")
+        @sip_destination ||= data["message"].from
         @last_Via = data["message"].header("Via")
         @last_CSeq = data["message"].header("CSeq")
         data
+    end
+
+    def set_callee uri
+        @sip_destination = uri
+        @last_To = "<sip:#{uri}>"
+    end
+
+    def setdest source
+        @src = source
     end
 
     def recv_request(method)
@@ -47,7 +61,7 @@ Content-Length: 0\r
         send_something(msg, retrans)
     end
 
-    def send_request(method, sdp=True, retrans=nil)
+    def send_request(method, sdp=true, retrans=nil)
 
         # local port
         # local media port
@@ -60,45 +74,37 @@ Content-Length: 0\r
         # Call-ID
 
         sdp="v=0
-      o=user1 53655765 2353687637 IN IP[local_ip_type] [local_ip]
+      o=user1 53655765 2353687637 IN IP4 #{QuaffUtils.local_ip}
       s=-
-      c=IN IP[media_ip_type] [media_ip]
+      c=IN IP4 #{QuaffUtils.local_ip}
       t=0 0
-      m=audio [media_port] RTP/AVP 0
+      m=audio 7000 RTP/AVP 0
       a=rtpmap:0 PCMU/8000"
 
       defaults = {
           "From" => @last_From,
           "To" => @last_To,
           "Call-ID" => @cid,
+          #"CSeq" => (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
+          "CSeq" => "1 #{method}",
           "Via" => @last_Via,
           "Max-Forwards" => "70",
-          "Contact" => "<sip:quaff#{local_ip}:#{local_port}>",
+          "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port}>",
       }
 
-      msg = req_uri
-      for key in defaults do
-          if not key.kind_of? Array
-              msg += "#{key}: #{defaults[key]}\r\n"
-          else defaults[key].each do |value|
+      msg = "#{method} #{@sip_destination} SIP/2.0\r\n"
+      defaults.each do |key, value|
+          if not value.kind_of? Array
               msg += "#{key}: #{value}\r\n"
+          else value.each do |subvalue|
+              msg += "#{key}: #{subvalue}\r\n"
           end
           end
       end
+      msg += "\r\n"
 
-      msg = "INVITE sip:[service]@[remote_ip]:[remote_port] SIP/2.0
-      Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
-      From: sipp <sip:sipp@[local_ip]:[local_port]>;tag=[pid]Quaff[call_number]
-      To: sut <sip:[service]@[remote_ip]:[remote_port]>
-      Call-ID: [call_id]
-      CSeq: 1 INVITE
-      Contact: sip:sipp@[local_ip]:[local_port]
-      Max-Forwards: 70
-      Subject: Quaff SIP Test
-      Content-Type: application/sdp
-      Content-Length: [len]
+      send_something(msg, retrans)
 
-      "
     end
 
     def send_something(msg, retrans)

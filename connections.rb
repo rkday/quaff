@@ -4,9 +4,14 @@ require './sources.rb'
 
 class BaseConnection
     def initialize(lport)
+        @lport = lport
         initialize_connection lport
         initialize_queues
         start
+    end
+
+    def local_port
+        @lport
     end
 
     def initialize_queues
@@ -28,11 +33,15 @@ class BaseConnection
         cid = @parser.message_identifier msg
         if cid and not @dead_calls.has_key? cid then
             unless @messages.has_key? cid then
-                @messages[cid] = Queue.new
+                add_call_id cid
                 @call_ids.enq cid
             end
             @messages[cid].enq({"message" => msg, "source" => source})
         end
+    end
+
+    def add_call_id cid
+        @messages[cid] = Queue.new
     end
 
     def get_new_call_id
@@ -90,8 +99,12 @@ class UDPSIPConnection < BaseConnection
 
     def recv_msg
         data, addrinfo = @cxn.recvfrom(65535)
+        puts "DATA:"
+        puts data
         msg = @parser.parse_start(data)
-        queue_msg msg, UDPSource.new(addrinfo)
+        puts "PARSED MESSAGE:"
+        #puts msg.to_s
+        queue_msg msg, UDPSource.new(addrinfo) unless msg.nil?
     end
 
     def initialize_connection(lport)

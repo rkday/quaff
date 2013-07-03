@@ -35,6 +35,7 @@ class SipParser
         @buf << data
         if not @p.finished? then
             @nread = @p.execute(@buf,@nread)
+            puts @p.error
             if @p.finished?
                 if @p.parsed.header("Content-Length").to_i == 0 then
                     return @p.parsed

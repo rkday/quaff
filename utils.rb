@@ -1,6 +1,7 @@
 require 'socket'
 
-def local_ipv4
+module QuaffUtils
+def QuaffUtils.local_ip
     Socket.ip_address_list.select {|i| !(i.ipv6? || i.ipv4_loopback?)}[0].ip_address
 end
 
@@ -16,7 +17,7 @@ def new_call_id
     "#{pid}_#{Time.new.to_i}@#{local_ipv4}"
 end
 
-def new_branch
+def QuaffUtils.new_branch
     "z9hG4bK#{Time.new.to_f}"
 end
-
+end
