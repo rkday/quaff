@@ -1,4 +1,4 @@
-require './quaff'
+require '../quaff'
 
 c = UDPSIPConnection.new(5060)
 loop do

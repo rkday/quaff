@@ -1,6 +1,6 @@
 require 'socket'
-require './sip_parser.rb'
-require './sources.rb'
+require_relative './sip_parser.rb'
+require_relative './sources.rb'
 
 class BaseConnection
     def initialize(lport)

@@ -1,4 +1,4 @@
-require './quaff'
+require '../quaff'
 
 c = Connection.new(5060)
 cid = c.get_new_call_id
