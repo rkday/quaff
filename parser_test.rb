@@ -10,6 +10,7 @@ To: Bob <sips:bob@biloxi.example.com>
 Call-ID: 1j9FpLxk3uxtm8tn@biloxi.example.com
 CSeq: 1 REGISTER
 Contact: <sips:bob@client.biloxi.example.com>
+Contact: <sips:bob2@client.biloxi.example.com>
 Content-Length: 0"
 
 response = "SIP/2.0 401 Unauthorized
@@ -25,36 +26,41 @@ WWW-Authenticate: Digest realm=\"atlanta.example.com\", qop=\"auth\",
 Content-Length: 0"
 
 describe SipParser, "#parse" do
-    it "does not throw an error on parsing a request" do
+    before :all do
         parser = SipParser.new
         parser.parse_start
-        parser.parse_partial message
-    end
-
-    it "does not throw an error on parsing a response" do
-        parser = SipParser.new
+        @parsed_request = parser.parse_partial message
         parser.parse_start
-        parser.parse_partial response
+        @parsed_response = parser.parse_partial response
     end
 
     it "produces something after parsing a request" do
-        parser = SipParser.new
-        parser.parse_start
-        parsed = parser.parse_partial message
-        parsed.should_not be nil
+        @parsed_request.should_not be nil
     end
 
     it "produces something from which headers can be retrieved after parsing a request" do
-        parser = SipParser.new
-        parser.parse_start
-        parsed = parser.parse_partial message
-        parsed.header("Max-Forwards").should eq ["70"]
+        @parsed_request.header("CSeq").should eq ["1 REGISTER"]
+    end
+
+    it "can parse headers with a hyphen" do
+        @parsed_request.header("Max-Forwards").should eq ["70"]
+    end
+
+    it "correctly handles headers with multiple values" do
+        @parsed_request.header("Contact").should eq ["<sips:bob@client.biloxi.example.com>", "<sips:bob2@client.biloxi.example.com>"]
     end
 
     it "produces something from which headers can be retrieved after parsing a response" do
-        parser = SipParser.new
-        parser.parse_start
-        parsed = parser.parse_partial response
-        parsed.header("CSeq").should eq ["1 REGISTER"]
+        @parsed_response.header("CSeq").should eq ["1 REGISTER"]
+        @parsed_response.header("Content-Length").should eq ["0"]
+    end
+
+    it "correctly handles authentication" do
+        @parsed_response.header("WWW-Authenticate").should eq ["Digest realm=\"atlanta.example.com\", qop=\"auth\", nonce=\"ea9c8e88df84f1cec4341ae6cbe5a359\", opaque=\"\", stale=FALSE, algorithm=MD5"]
+        authenticate(@parsed_response.header("WWW-Authenticate")[0], "bob", "zanzibar", "REGISTER", "sips:ss2.biloxi.example.com").should eq 'username="bob", realm="atlanta.example.com", nonce="ea9c8e88df84f1cec4341ae6cbe5a359", opaque="", uri="sips:ss2.biloxi.example.com", response="dfe56131d1958046689d83306477ecc"'
+    end
+
+    it "produces a nonce correctly" do
+        gen_nonce('Digest realm="biloxi.com", nonce="dcd98b7102dd2f0e8b11d0f600bfb0c093", opaque="5ccc069c403ebaf9f0171e9517f40e41"', "bob", "zanzibar", "INVITE", "sip:bob@biloxi.com").should eq "bf57e4e0d0bffc0fbaedce64d59add5e"
     end
 end
