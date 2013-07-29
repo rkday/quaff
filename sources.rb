@@ -8,6 +8,9 @@ class Source
     def remote_port
         @port
     end
+
+    def close cxn
+    end
 end
 
 class UDPSource < Source
@@ -30,6 +33,11 @@ class TCPSource < Source
 
     def send _, data
         @sock.puts data
+    end
+
+    def close cxn
+        @sock.close
+        cxn.sockets.delete(@sock)
     end
 end
 

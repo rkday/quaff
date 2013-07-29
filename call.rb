@@ -16,7 +16,7 @@ class Call
         @src = data['source']
         @last_To = data["message"].header("To")
         @last_From = data["message"].header("From")
-        @sip_destination ||= data["message"].from
+        @sip_destination ||= data["message"].header("From")
         @last_Via = data["message"].header("Via")
         @last_CSeq = data["message"].header("CSeq")
         data
@@ -57,7 +57,7 @@ CSeq: #{ @last_CSeq }\r
 Contact: <sip:127.0.1.1:5060;transport=UDP>\r
 Content-Length: 0\r
 \r
-        "
+"
         send_something(msg, retrans)
     end
 
@@ -129,6 +129,7 @@ Content-Length: 0\r
 
     def end_call
         @cxn.mark_call_dead @cid
+        @src.close @cxn
     end
 
 end

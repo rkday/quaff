@@ -10,7 +10,7 @@ class SipMessage
     end
 
     def header hdr
-        return @headers[hdr]
+        return @headers[hdr][0]
     end
 end
 
@@ -22,6 +22,7 @@ class SipParser
     end
 
     def parse_partial(data)
+        return nil if data.nil?
         data.lines.each do |line|
             if @state == :blank
                 parse_line_blank line
@@ -39,11 +40,12 @@ class SipParser
     end
 
     def message_identifier(msg)
-        msg.header("Call-ID")[0]
+        msg.header("Call-ID")
     end
 
     def parse_line_blank line
-        if line =~ %r!^([A-Z]+) (.+) SIP/2.0$!
+        puts line
+        if line =~ %r!^([A-Z]+) (.+) SIP/2.0\r$!
             @msg.type = :request
             @msg.method = $1
             @msg.requri = $2
@@ -64,6 +66,11 @@ class SipParser
         if line =~ /^\s+(.+)\r/
             @msg.headers[@cur_hdr][-1] += " "
             @msg.headers[@cur_hdr][-1] += $1
+            if $1 == "Content-Length"
+                @state = :got_content_length
+            else
+                @state = :middle_of_headers
+            end
         elsif line =~ /^([-\w]+)\s*:\s*(.+)\r/
             @msg.headers[$1] ||= []
             @msg.headers[$1].push $2
@@ -85,7 +92,7 @@ class SipParser
 
     def parse_line_body line
        @msg.body << line
-       if line == "\r" or @msg.body.length >= @msg.header("Content-Length")[0].to_i
+       if line == "\r" or @msg.body.length >= @msg.header("Content-Length").to_i
          @state = :done
        end
     end

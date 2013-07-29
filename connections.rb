@@ -34,6 +34,7 @@ class BaseConnection
         cid = @parser.message_identifier msg
         if cid and not @dead_calls.has_key? cid then
             unless @messages.has_key? cid then
+
                 add_call_id cid
                 @call_ids.enq cid
             end
@@ -76,8 +77,9 @@ class TCPSIPConnection < BaseConnection
     end
 
     def recv_msg
-        # This is subpar - should be event-driven
-        for sock in @sockets do
+        select_response = IO.select(@sockets, [], [], 0) || [[]]
+        readable = select_response[0]
+        for sock in readable do
             recv_msg_from_sock sock
         end
         begin
