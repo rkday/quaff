@@ -33,7 +33,7 @@ class Call
 
     def recv_request(method)
         data = recv_something
-        unless data["message"].request? and data["message"].sip_method.to_s == method
+        unless data["message"].type == :request and data["message"].method == method
             raise
         end
         data
@@ -41,7 +41,7 @@ class Call
 
     def recv_response(code)
         data = recv_something
-        unless data["message"].response? and data["message"].status_code == code
+        unless data["message"].type == :response and data["message"].status_code == code
             raise
         end
         data

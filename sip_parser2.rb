@@ -1,11 +1,12 @@
 require 'digest/md5'
 
 class SipMessage
-    attr_accessor :type, :method, :requri, :reason, :status_code, :headers
+    attr_accessor :type, :method, :requri, :reason, :status_code, :headers, :body
 
     def initialize
         @headers = {}
-        @method, @status_code, @reason, @req_uri, @body = nil
+        @method, @status_code, @reason, @req_uri = nil
+        @body = ""
     end
 
     def header hdr
@@ -21,24 +22,24 @@ class SipParser
     end
 
     def parse_partial(data)
-        @buf << data
-        @buf.lines.each do |line|
+        data.lines.each do |line|
             if @state == :blank
                 parse_line_blank line
-            elsif @state == :first_line_parsed
-                parse_line_first_line_parsed line
-            elsif @state == :middle_of_headers
-                parse_line_first_line_parsed line
-            elsif @state == :got_content_length
-                return @msg
             elsif @state == :parsing_body
+                parse_line_body line
+            else
+                parse_line_first_line_parsed line
             end
         end
-        @msg
+            if @state == :done
+                return @msg
+            else
+                return nil
+            end
     end
 
     def message_identifier(msg)
-        msg.header "Call-ID"
+        msg.header("Call-ID")[0]
     end
 
     def parse_line_blank line
@@ -47,33 +48,48 @@ class SipParser
             @msg.method = $1
             @msg.requri = $2
             @state = :first_line_parsed
-        elsif line =~ %r!^SIP/2.0 (\d+) (.+)$!
+        elsif line =~ %r!^SIP/2.0 (\d+) (.+)\r$!
             @msg.type = :response
             @msg.status_code = $1
             @msg.reason = $2
             @state = :first_line_parsed
-        elsif line == ""
+        elsif line == "\r" or line == "\r\n"
+            # skip empty lines
         else
             raise line
         end
     end
 
     def parse_line_first_line_parsed line
-        if line =~ /^\s+(.+)/
+        if line =~ /^\s+(.+)\r/
             @msg.headers[@cur_hdr][-1] += " "
             @msg.headers[@cur_hdr][-1] += $1
-        elsif line =~ /^([-\w]+)\s*:\s*(.+)/
+        elsif line =~ /^([-\w]+)\s*:\s*(.+)\r/
             @msg.headers[$1] ||= []
             @msg.headers[$1].push $2
             @cur_hdr = $1
             if $1 == "Content-Length"
-            @state = :got_content_length 
+                @state = :got_content_length 
             else
                 @state = :middle_of_headers
             end
-        else raise line
+        elsif line == "\r" or line == "\r\n"
+            if @state == :got_content_length and @msg.header("Content-Length")[0].to_i > 0
+               @state = :parsing_body
+            else
+               @state = :done
+            end
+        else raise line.inspect
         end
     end
+
+    def parse_line_body line
+       @msg.body << line
+       if line == "\r" or @msg.body.length >= @msg.header("Content-Length")[0].to_i
+         @state = :done
+       end
+    end
+
 end
 
 def gen_nonce auth_line, username, passwd, method, sip_uri         

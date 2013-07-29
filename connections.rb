@@ -1,5 +1,6 @@
 require 'socket'
-require_relative './sip_parser.rb'
+require 'thread'
+require_relative './sip_parser2.rb'
 require_relative './sources.rb'
 
 class BaseConnection
@@ -23,7 +24,7 @@ class BaseConnection
 
     def start
         Thread.new do
-            while 1 do
+            loop do
                 recv_msg
             end
         end
@@ -36,7 +37,7 @@ class BaseConnection
                 add_call_id cid
                 @call_ids.enq cid
             end
-            @messages[cid].enq({"message" => msg, "source" => source})
+        @messages[cid].enq({"message" => msg, "source" => source})
         end
     end
 
@@ -66,6 +67,8 @@ class BaseConnection
 end
 
 class TCPSIPConnection < BaseConnection
+    attr_accessor :sockets
+
     def initialize_connection(lport)
         @cxn = TCPServer.new(lport)
         @parser = SipParser.new
@@ -86,11 +89,17 @@ class TCPSIPConnection < BaseConnection
     end
 
     def recv_msg_from_sock(sock)
-        msg = @parser.parse_start sock.gets
+        @parser.parse_start
+        msg = nil
         while msg.nil? do
-            msg = @parser.parse_partial sock.gets
+            line = sock.gets
+            msg = @parser.parse_partial line
         end
         queue_msg msg, TCPSource.new(sock)
+    end
+
+    def add_sock sock
+      @sockets.push sock
     end
 
 end
@@ -99,11 +108,12 @@ class UDPSIPConnection < BaseConnection
 
     def recv_msg
         data, addrinfo = @cxn.recvfrom(65535)
-        puts "DATA:"
-        puts data
-        msg = @parser.parse_start(data)
-        puts "PARSED MESSAGE:"
-        #puts msg.to_s
+        #puts "DATA:"
+        #puts data
+        @parser.parse_start
+        msg = @parser.parse_partial(data)
+        #puts "PARSED MESSAGE:"
+        #puts msg.headers
         queue_msg msg, UDPSource.new(addrinfo) unless msg.nil?
     end
 
@@ -115,5 +125,4 @@ class UDPSIPConnection < BaseConnection
     end
 
 end
-
 
