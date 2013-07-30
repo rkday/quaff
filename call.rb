@@ -6,8 +6,8 @@ class Call
         @cxn, @cid = cxn, cid
         @retrans = nil
         @t1, @t2 = 0.5, 32
-        @last_Via = "SIP/2.0/UDP 127.0.0.1:5060;branch=#{QuaffUtils.new_branch}"
-        @last_From = "quaff <sip:#{dn}@127.0.0.1>"
+        @last_Via = "SIP/2.0/TCP #{QuaffUtils.local_ip}:5060;branch=#{QuaffUtils.new_branch}"
+        @last_From = "quaff <sip:#{dn}@#{QuaffUtils.local_ip}>"
     end
 
     def recv_something
@@ -51,31 +51,11 @@ class Call
     end
 
     def send_response(code, retrans=nil)
-        msg = "SIP/2.0 #{ code }\r
-Via: #{ @last_Via }\r
-From: #{ @last_From }\r
-To: #{ @last_To };tag=6171SIPpTag001\r
-Call-ID: #{ @cid }\r
-CSeq: #{ @last_CSeq }\r
-Contact: <sip:127.0.1.1:5060;transport=UDP>\r
-Content-Length: 0\r
-\r
-"
+        msg = build_message headers, :response, code
         send_something(msg, retrans)
     end
 
     def send_request(method, sdp=true, retrans=nil, headers={})
-
-        # local port
-        # local media port
-        # UDP vs. TCP
-        # remote IP
-        # remote port
-        # tag
-        # SDP length
-        # CSeq
-        # Call-ID
-
         sdp="v=0
       o=user1 53655765 2353687637 IN IP4 #{QuaffUtils.local_ip}
       s=-
@@ -84,6 +64,10 @@ Content-Length: 0\r
       m=audio 7000 RTP/AVP 0
       a=rtpmap:0 PCMU/8000"
 
+        msg = build_message headers, :request, method
+        send_something(msg, retrans)
+
+    def build_message headers, type, method_or_code
       defaults = {
           "From" => @last_From,
           "To" => @last_To,
@@ -97,7 +81,11 @@ Content-Length: 0\r
 
       defaults.merge headers
 
-      msg = "#{method} #{@sip_destination} SIP/2.0\r\n"
+      if type == :request
+        msg = "#{method} #{@sip_destination} SIP/2.0\r\n"
+      else:
+        msg = "SIP/2.0 #{ code }\r"
+
       defaults.each do |key, value|
           if not value.kind_of? Array
               msg += "#{key}: #{value}\r\n"
@@ -108,8 +96,7 @@ Content-Length: 0\r
       end
       msg += "\r\n"
 
-      send_something(msg, retrans)
-
+      msg
     end
 
     def send_something(msg, retrans)
