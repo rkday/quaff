@@ -1,0 +1,7 @@
+* Client-side
+** TODO Function to respond to a WWW-Authenticate header
+** TODO Custom header injection in message
+** TODO Utility function to get Via/Record-Route header and setdest it
+** TODO Syntactic sugar to make establishing a scenario easier
+** TODO Logging of messages and errors to file
+** 

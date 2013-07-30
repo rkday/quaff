@@ -61,7 +61,7 @@ Content-Length: 0\r
         send_something(msg, retrans)
     end
 
-    def send_request(method, sdp=true, retrans=nil)
+    def send_request(method, sdp=true, retrans=nil, headers={})
 
         # local port
         # local media port
@@ -91,6 +91,8 @@ Content-Length: 0\r
           "Max-Forwards" => "70",
           "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port}>",
       }
+
+      defaults.merge headers
 
       msg = "#{method} #{@sip_destination} SIP/2.0\r\n"
       defaults.each do |key, value|
