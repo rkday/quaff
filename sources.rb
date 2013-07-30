@@ -26,6 +26,8 @@ end
 
 
 class TCPSource < Source
+	attr_reader :sock
+
     def initialize sock
         @sock = sock
         @port, @ip = Socket.unpack_sockaddr_in(@sock.getpeername)

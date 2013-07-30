@@ -4,17 +4,29 @@ c = TCPSIPConnection.new(5070)
 	incoming_cid = c.get_new_call_id
 incoming_call = Call.new(c, incoming_cid)
 
-	incoming_call.recv_request("INVITE")
+data =	incoming_call.recv_request("INVITE")
+	puts "About to send 100"
 	incoming_call.send_response("100")
+	puts "100 sent"
+/<sip:.+@(.+):(\d+);lr>/ =~ data['message'].headers["Route"][1]
+puts $1, $2
+sock = TCPSocket.new $1, $2
+puts sock
+source = TCPSource.new sock
 
 # Send a new call back to Sprout
-	outgoing_call = Call.new(c, call_id: incoming_cid+"///2")
-outgoing_call.setdest(incoming_call.get_next_hop_from_route, recv_from_this: true)
+	outgoing_call = Call.new(c, incoming_cid+"///2")
+outgoing_call.setdest(source, recv_from_this: true)
 
 # Copy top Route header to Route or Request-URI?
-	outgoing_call.clone_details(incoming_call) # Copy To, From headers etc.
-	outgoing_call.send_request("INVITE")
-
+	/<sip:(.*)>/ =~ data['message'].header("To") # Copy To, From headers etc.
+	outgoing_call.set_callee($1) # Copy To, From headers etc.
+	outgoing_call.send_request("INVITE", nil, {
+		To: data['message'].header("To"),
+		From: data['message'].header("From"),
+		Route: data['message'].header("Route"),
+})
+	puts "Invite sent"
 	outgoing_call.recv_response("180")
 	incoming_call.send_response("180")
 

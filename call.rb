@@ -27,8 +27,11 @@ class Call
         @last_To = "<sip:#{uri}>"
     end
 
-    def setdest source
+    def setdest source, options={}
         @src = source
+	if options['recv_from_this']
+		@cxn.add_sock source.sock
+	end
     end
 
     def recv_request(method)
@@ -132,6 +135,16 @@ Content-Length: 0\r
     def end_call
         @cxn.mark_call_dead @cid
         @src.close @cxn
+    end
+
+   def clear_tag str
+	str
+	end
+
+    def clone_details other_message
+      @headers['To'] = [clear_tag(other_message.header("To"))]
+      @headers['From'] = [clear_tag(other_message.header("From"))]
+      @headers['Route'] = [other_message.header("Route")]
     end
 
 end
