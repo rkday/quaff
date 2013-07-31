@@ -42,6 +42,7 @@ class Call
         unless data["message"].type == :request and data["message"].method == method
             raise data['message']
         end
+        #puts "Expected #{method}, got #{data["message"].method}"
         data
     end
 
@@ -50,6 +51,7 @@ class Call
         unless data["message"].type == :response and data["message"].status_code == code
             raise "Expected #{ code}, got #{data["message"].status_code}"
         end
+        #puts "Expected #{ code}, got #{data["message"].status_code}"
         data
     end
 

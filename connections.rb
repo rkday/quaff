@@ -83,8 +83,10 @@ class TCPSIPConnection < BaseConnection
             recv_msg_from_sock sock
         end
         begin
-            sock = @cxn.accept_nonblock
-            @sockets.push sock
+            if @cxn
+              sock = @cxn.accept_nonblock
+              @sockets.push sock if sock
+            end
         rescue IO::WaitReadable, Errno::EINTR
             sleep 0.3
         end
@@ -103,6 +105,15 @@ class TCPSIPConnection < BaseConnection
 
     def add_sock sock
       @sockets.push sock
+    end
+
+    def terminate
+      oldsockets = @sockets.dup
+      @sockets = []
+      oldsockets.each do |s| begin s.close rescue nil end end
+      mycxn = @cxn
+      @cxn = nil
+      mycxn.close
     end
 
 end
