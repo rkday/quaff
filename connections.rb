@@ -43,7 +43,7 @@ class BaseConnection
     end
 
     def add_call_id cid
-        @messages[cid] = Queue.new
+        @messages[cid] ||= Queue.new
     end
 
     def get_new_call_id
@@ -95,6 +95,7 @@ class TCPSIPConnection < BaseConnection
         msg = nil
         while msg.nil? do
             line = sock.gets
+#		puts line
             msg = @parser.parse_partial line
         end
         queue_msg msg, TCPSource.new(sock)

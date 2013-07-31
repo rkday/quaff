@@ -1,12 +1,14 @@
 require_relative './utils.rb'
+require_relative './sources.rb'
 
 class Call
 
     def initialize(cxn, cid, dn="5557777888")
         @cxn, @cid = cxn, cid
+	@cxn.add_call_id @cid
         @retrans = nil
         @t1, @t2 = 0.5, 32
-        @last_Via = "SIP/2.0/TCP #{QuaffUtils.local_ip}:5060;branch=#{QuaffUtils.new_branch}"
+        @last_Via = "SIP/2.0/TCP #{QuaffUtils.local_ip}:5070;rport;branch=#{QuaffUtils.new_branch}"
         @last_From = "quaff <sip:#{dn}@#{QuaffUtils.local_ip}>"
     end
 
@@ -17,19 +19,20 @@ class Call
         @last_To = data["message"].header("To")
         @last_From = data["message"].header("From")
         @sip_destination ||= data["message"].header("From")
-        @last_Via = data["message"].header("Via")
+        @last_Via = data["message"].headers["Via"]
+        @last_RR = data["message"].headers["Record-Route"]
         @last_CSeq = data["message"].header("CSeq")
         data
     end
 
     def set_callee uri
-        @sip_destination = uri
+        @sip_destination = "sip:#{uri}"
         @last_To = "<sip:#{uri}>"
     end
 
     def setdest source, options={}
         @src = source
-	if options['recv_from_this']
+	if options[:recv_from_this]
 		@cxn.add_sock source.sock
 	end
     end
@@ -37,7 +40,7 @@ class Call
     def recv_request(method)
         data = recv_something
         unless data["message"].type == :request and data["message"].method == method
-            raise
+            raise data['message']
         end
         data
     end
@@ -45,12 +48,12 @@ class Call
     def recv_response(code)
         data = recv_something
         unless data["message"].type == :response and data["message"].status_code == code
-            raise
+            raise "Expected #{ code}, got #{data["message"].status_code}"
         end
         data
     end
 
-    def send_response(code, retrans=nil)
+    def send_response(code, retrans=nil, headers={})
         msg = build_message headers, :response, code
         send_something(msg, retrans)
     end
@@ -66,6 +69,7 @@ class Call
 
         msg = build_message headers, :request, method
         send_something(msg, retrans)
+	end
 
     def build_message headers, type, method_or_code
       defaults = {
@@ -73,26 +77,32 @@ class Call
           "To" => @last_To,
           "Call-ID" => @cid,
           #"CSeq" => (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
-          "CSeq" => "1 #{method}",
+          "CSeq" => "1 INVITE",
           "Via" => @last_Via,
+          "Record-Route" => @last_RR,
           "Max-Forwards" => "70",
-          "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port}>",
+          "Content-Length" => "0",
+          "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port};transport=TCP;ob>",
       }
 
-      defaults.merge headers
+
+      defaults.merge! headers
+
 
       if type == :request
-        msg = "#{method} #{@sip_destination} SIP/2.0\r\n"
-      else:
-        msg = "SIP/2.0 #{ code }\r"
+        msg = "#{method_or_code} #{@sip_destination} SIP/2.0\r\n"
+      else
+        msg = "SIP/2.0 #{ method_or_code }\r\n"
+	end
 
       defaults.each do |key, value|
-          if not value.kind_of? Array
+	if value.nil?
+          elsif not value.kind_of? Array
               msg += "#{key}: #{value}\r\n"
           else value.each do |subvalue|
               msg += "#{key}: #{subvalue}\r\n"
           end
-          end
+	end
       end
       msg += "\r\n"
 
@@ -133,5 +143,11 @@ class Call
       @headers['From'] = [clear_tag(other_message.header("From"))]
       @headers['Route'] = [other_message.header("Route")]
     end
+
+def get_next_hop header
+/<sip:(.+@)?(.+):(\d+);(.*)>/ =~ header
+sock = TCPSocket.new $2, $3
+return TCPSource.new sock
+end
 
 end

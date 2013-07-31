@@ -44,7 +44,6 @@ class SipParser
     end
 
     def parse_line_blank line
-        puts line
         if line =~ %r!^([A-Z]+) (.+) SIP/2.0\r$!
             @msg.type = :request
             @msg.method = $1
