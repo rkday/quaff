@@ -1,3 +1,4 @@
+# -*- coding: us-ascii -*-
 require 'socket'
 require 'thread'
 require_relative './sip_parser2.rb'
@@ -76,6 +77,10 @@ class TCPSIPConnection < BaseConnection
         @sockets = []
     end
 
+    def transport
+      "TCP"
+    end
+    
     def recv_msg
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]
@@ -131,6 +136,10 @@ class UDPSIPConnection < BaseConnection
         queue_msg msg, UDPSource.new(addrinfo) unless msg.nil?
     end
 
+    def transport
+      "UDP"
+    end
+    
     def initialize_connection(lport)
         @cxn = UDPSocket.new
         @cxn.bind('0.0.0.0', lport)
