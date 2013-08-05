@@ -10,6 +10,7 @@ class CSeq
 
   def increment
     @num = @num +1
+    to_s
   end
 
   def to_s
