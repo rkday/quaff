@@ -2,6 +2,22 @@
 require_relative './utils.rb'
 require_relative './sources.rb'
 
+class CSeq
+  def initialize cseq_str
+    @num, @method = cseq_str.split
+    @num = @num.to_i
+  end
+
+  def increment
+    @num = @num +1
+  end
+
+  def to_s
+    "#{@num.to_s} #{@method}"
+  end
+  
+end
+
 class Call
 
   def initialize(cxn, cid, uri="sip:5557777888@#{QuaffUtils.local_ip}")
@@ -27,7 +43,7 @@ class Call
     @sip_destination ||= data["message"].header("From")
     @last_Via = data["message"].headers["Via"]
     @last_RR = data["message"].headers["Record-Route"]
-    @last_CSeq = data["message"].header("CSeq")
+    @last_CSeq = CSeq.new(data["message"].header("CSeq"))
     data
   end
 
@@ -84,8 +100,7 @@ class Call
       "From" => @last_From,
       "To" => @last_To,
       "Call-ID" => @cid,
-      #"CSeq" => (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
-      "CSeq" => "1 INVITE",
+      "CSeq" => (/\d+/ =~ method_or_code) ? @last_CSeq.to_s : (method_or_code == "ACK") ? @last_CSeq.increment : "1 #{method_or_code}",
       "Via" => @last_Via,
       #"Record-Route" => @last_RR,
       "Max-Forwards" => "70",
@@ -161,13 +176,13 @@ class Call
 
   def register username=@username, password=@password, expires="3600"
     @username, @password = username, password
-    send_request("REGISTER", nil, nil, { "CSeq" => "1 REGISTER", "Expires" => expires.to_s })
+    send_request("REGISTER", nil, nil, { "Expires" => expires.to_s })
     response_data = recv_response("401|200")
     if response_data['message'].status_code == "401"
-      send_request("ACK", nil, nil, { "CSeq" => "1 REGISTER" })
+      send_request("ACK")
       auth_hdr = gen_auth_header response_data['message'].header("WWW-Authenticate"), username, password, "REGISTER", @uri
       update_branch
-      send_request("REGISTER", nil, nil, {"Authorization" =>  auth_hdr, "CSeq" => "2 REGISTER", "Expires" => expires.to_s})
+      send_request("REGISTER", nil, nil, {"Authorization" =>  auth_hdr, "Expires" => expires.to_s})
       recv_response("200")
     end
     return true
