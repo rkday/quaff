@@ -26,8 +26,8 @@ class Call
     end
 
     def set_callee uri
-        @sip_destination = "sip:#{uri}"
-        @last_To = "<sip:#{uri}>"
+        @sip_destination = "#{uri}"
+        @last_To = "<#{uri}>"
     end
 
     def setdest source, options={}
@@ -81,7 +81,7 @@ class Call
           #"CSeq" => (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
           "CSeq" => "1 INVITE",
           "Via" => @last_Via,
-          "Record-Route" => @last_RR,
+          #"Record-Route" => @last_RR,
           "Max-Forwards" => "70",
           "Content-Length" => "0",
           "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port};transport=TCP;ob>",
