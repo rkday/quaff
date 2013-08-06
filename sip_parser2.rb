@@ -10,9 +10,19 @@ class SipMessage
         @body = ""
     end
 
+    def all_headers hdr
+        return @headers[hdr]
+    end
+
     def header hdr
         return @headers[hdr][0]
     end
+    alias_method :first_header, :header
+
+    def to_s
+       "#{@method} #{@status_code} #{@headers}"
+    end
+
 end
 
 class SipParser
@@ -53,7 +63,7 @@ class SipParser
         elsif line =~ %r!^SIP/2.0 (\d+) (.+)\r$!
             @msg.type = :response
             @msg.status_code = $1
-            @msg.reason = $2
+            @msg.reason = $3 || ""
             @state = :first_line_parsed
         elsif line == "\r" or line == "\r\n"
             # skip empty lines

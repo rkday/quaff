@@ -20,21 +20,38 @@ class CSeq
 end
 
 class Call
+  attr_reader :cid
 
-  def initialize(cxn, cid, uri="sip:5557777888@#{QuaffUtils.local_ip}")
-    @cxn, @cid = cxn, cid
-    @cxn.add_call_id @cid
+  def initialize(cxn, cid, uri="sip:5557777888@#{QuaffUtils.local_ip}", destination=nil, target_uri=nil)
+    @cxn = cxn
+    change_cid cid
     @uri = uri
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @last_From = "<#{uri}>"
     update_branch
+    setdest(destination, recv_from_this: true) if destination
+    set_callee target_uri if target_uri
+    @routeset = []
+  end
+
+  def change_cid cid
+    @cid = cid
+    @cxn.add_call_id @cid
   end
 
   def update_branch
     @last_Via = "SIP/2.0/#{@cxn.transport} #{QuaffUtils.local_ip}:#{@cxn.local_port};rport;branch=#{QuaffUtils.new_branch}"
   end
   
+  def create_dialog msg
+    set_callee msg.first_header("Contact")
+    @routeset = msg.all_headers("Record-Route")
+    if msg.type == :request
+      @routeset = @routeset.reverse
+    end
+  end
+
   def recv_something
     data = @cxn.get_new_message @cid
     @retrans = nil
@@ -43,38 +60,47 @@ class Call
     @last_From = data["message"].header("From")
     @sip_destination ||= data["message"].header("From")
     @last_Via = data["message"].headers["Via"]
-    @last_RR = data["message"].headers["Record-Route"]
     @last_CSeq = CSeq.new(data["message"].header("CSeq"))
     data
   end
 
   def set_callee uri
+    if /<(.*)>/ =~ uri
+      uri = $1
+    end
+    
     @sip_destination = "#{uri}"
     @last_To = "<#{uri}>"
   end
 
   def setdest source, options={}
     @src = source
-    if options[:recv_from_this]
+    if options[:recv_from_this] and source.sock
       @cxn.add_sock source.sock
     end
   end
 
   def recv_request(method)
-    data = recv_something
-    unless data["message"].type == :request and Regexp.new(method) =~ data["message"].method
-      raise data['message']
+    begin
+      data = recv_something
+    rescue
+      raise "#{ @uri } timed out waiting for #{ method }"
     end
-    #puts "Expected #{method}, got #{data["message"].method}"
+    unless data["message"].type == :request and Regexp.new(method) =~ data["message"].method
+      raise (data['message'].to_s || "Message is nil!")
+    end
     data
   end
 
   def recv_response(code)
-    data = recv_something
-    unless data["message"].type == :response and Regexp.new(code) =~ data["message"].status_code
-      raise "Expected #{ code}, got #{data["message"].status_code}"
+    begin
+      data = recv_something
+    rescue
+      raise "#{ @uri } timed out waiting for #{ code }"
     end
-    #puts "Expected #{ code}, got #{data["message"].status_code}"
+    unless data["message"].type == :response and Regexp.new(code) =~ data["message"].status_code
+      raise "Expected #{ code}, got #{data["message"].status_code || data['message']}"
+    end
     data
   end
 
@@ -103,13 +129,17 @@ class Call
       "Call-ID" => @cid,
       "CSeq" => (/\d+/ =~ method_or_code) ? @last_CSeq.to_s : (method_or_code == "ACK") ? @last_CSeq.increment : "1 #{method_or_code}",
       "Via" => @last_Via,
-      #"Record-Route" => @last_RR,
       "Max-Forwards" => "70",
       "Content-Length" => "0",
       "User-Agent" => "Quaff SIP Scripting Engine",
       "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
     }
 
+    if type == :request
+      defaults['Route'] = @routeset
+    else
+      defaults['Record-Route'] = @routeset
+    end
 
     defaults.merge! headers
 
@@ -156,7 +186,6 @@ class Call
 
   def end_call
     @cxn.mark_call_dead @cid
-    @src.close @cxn
   end
 
   def clear_tag str
@@ -177,6 +206,7 @@ class Call
 
   def register username=@username, password=@password, expires="3600"
     @username, @password = username, password
+    set_callee(@uri)
     send_request("REGISTER", nil, nil, { "Expires" => expires.to_s })
     response_data = recv_response("401|200")
     if response_data['message'].status_code == "401"

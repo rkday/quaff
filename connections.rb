@@ -1,10 +1,25 @@
 # -*- coding: us-ascii -*-
 require 'socket'
 require 'thread'
+require 'timeout'
 require_relative './sip_parser2.rb'
 require_relative './sources.rb'
 
-class BaseConnection
+class BaseEndpoint
+    attr_accessor :msg_trace
+
+    def terminate
+    end
+
+    def add_sock sock
+    end
+
+    def new_call call_id=nil, *args
+      call_id ||= get_new_call_id
+      puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
+      Call.new(self, call_id, *args)
+    end
+
     def initialize(lport)
         @lport = lport
         initialize_connection lport
@@ -32,6 +47,7 @@ class BaseConnection
     end
 
     def queue_msg(msg, source)
+        puts "Endpoint on #{@lport} received #{msg} from #{source.inspect}" if @msg_trace
         cid = @parser.message_identifier msg
         if cid and not @dead_calls.has_key? cid then
             unless @messages.has_key? cid then
@@ -47,12 +63,12 @@ class BaseConnection
         @messages[cid] ||= Queue.new
     end
 
-    def get_new_call_id
-        @call_ids.deq
+    def get_new_call_id time_limit=5
+        Timeout::timeout(time_limit) { @call_ids.deq }
     end
 
-    def get_new_message(cid)
-        @messages[cid].deq
+    def get_new_message(cid, time_limit=5)
+        Timeout::timeout(time_limit) { @messages[cid].deq }
     end
 
     def mark_call_dead(cid)
@@ -63,12 +79,13 @@ class BaseConnection
     end
 
     def send(data, source)
+        puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
         source.send(@cxn, data)
     end
 
 end
 
-class TCPSIPConnection < BaseConnection
+class TCPSIPEndpoint < BaseEndpoint
     attr_accessor :sockets
 
     def initialize_connection(lport)
@@ -79,6 +96,10 @@ class TCPSIPConnection < BaseConnection
 
     def transport
       "TCP"
+    end
+
+    def new_source ip, port
+      return TCPSource.new ip, port
     end
     
     def recv_msg
@@ -100,12 +121,11 @@ class TCPSIPConnection < BaseConnection
     def recv_msg_from_sock(sock)
         @parser.parse_start
         msg = nil
-        while msg.nil? do
+        while msg.nil? and not sock.closed? do
             line = sock.gets
-#		puts line
             msg = @parser.parse_partial line
         end
-        queue_msg msg, TCPSource.new(sock)
+        queue_msg msg, TCPSourceFromSocket.new(sock)
     end
 
     def add_sock sock
@@ -115,7 +135,7 @@ class TCPSIPConnection < BaseConnection
     def terminate
       oldsockets = @sockets.dup
       @sockets = []
-      oldsockets.each do |s| begin s.close rescue nil end end
+      oldsockets.each do |s| s.close unless s.closed? end
       mycxn = @cxn
       @cxn = nil
       mycxn.close
@@ -123,21 +143,21 @@ class TCPSIPConnection < BaseConnection
 
 end
 
-class UDPSIPConnection < BaseConnection
+class UDPSIPEndpoint < BaseEndpoint
 
     def recv_msg
         data, addrinfo = @cxn.recvfrom(65535)
-        #puts "DATA:"
-        #puts data
         @parser.parse_start
         msg = @parser.parse_partial(data)
-        #puts "PARSED MESSAGE:"
-        #puts msg.headers
-        queue_msg msg, UDPSource.new(addrinfo) unless msg.nil?
+        queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
     end
 
     def transport
       "UDP"
+    end
+    
+    def new_source ip, port
+      return UDPSource.new ip, port
     end
     
     def initialize_connection(lport)

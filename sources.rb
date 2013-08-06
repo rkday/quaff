@@ -11,12 +11,15 @@ class Source
 
     def close cxn
     end
+
+    def sock
+      nil
+    end
 end
 
 class UDPSource < Source
-    def initialize addrinfo
-        @addrinfo = addrinfo
-        @ip, @port = @addrinfo[3], @addrinfo[1]
+    def initialize ip, port
+        @ip, @port = ip, port
     end
 
     def send cxn, data
@@ -24,13 +27,19 @@ class UDPSource < Source
     end
 end
 
+class UDPSourceFromAddrinfo < UDPSource
+    def initialize addrinfo
+        @ip, @port = addrinfo[3], addrinfo[1]
+    end
+end
+
 
 class TCPSource < Source
 	attr_reader :sock
 
-    def initialize sock
-        @sock = sock
-        @port, @ip = Socket.unpack_sockaddr_in(@sock.getpeername)
+    def initialize ip, port
+        @sock = TCPSocket.new ip, port 
+        @port, @ip = port, ip
     end
 
     def send _, data
@@ -43,4 +52,9 @@ class TCPSource < Source
     end
 end
 
-
+class TCPSourceFromSocket < TCPSource
+    def initialize sock
+      @sock = sock
+      @port, @ip = Socket.unpack_sockaddr_in(@sock.getpeername)
+    end
+end
