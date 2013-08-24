@@ -1,6 +1,6 @@
 #!/usr/bin/ruby
 
-require './sip_parser.rb'
+require 'quaff'
 
 def force_crlf text
   text.gsub(/\n/, "\r\n")
@@ -66,7 +66,7 @@ describe SipParser, "#parse" do
 
     it "correctly handles authentication" do
         @parsed_response.header("WWW-Authenticate").should eq "Digest realm=\"atlanta.example.com\", qop=\"auth\", nonce=\"ea9c8e88df84f1cec4341ae6cbe5a359\", opaque=\"\", stale=FALSE, algorithm=MD5"
-        gen_auth_header(@parsed_response.header("WWW-Authenticate"), "bob", "zanzibar", "REGISTER", "sips:ss2.biloxi.example.com").should eq 'Digest username="bob",realm="atlanta.example.com",nonce="ea9c8e88df84f1cec4341ae6cbe5a359",uri="sips:ss2.biloxi.example.com",response="b5f508175c6cccc6f0600285b4391fbf",algorithm="MD5",opaque=""'
+        gen_auth_header(@parsed_response.header("WWW-Authenticate"), "bob", "zanzibar", "REGISTER", "sips:ss2.biloxi.example.com").should eq "Digest username=\"bob\",realm=\"atlanta.example.com\",nonce=\"ea9c8e88df84f1cec4341ae6cbe5a359\",uri=\"sips:ss2.biloxi.example.com\",response=\"b5f508175c6cccc6f0600285b4391fbf\",algorithm=\"MD5\",opaque=\"\""
     end
 
 end

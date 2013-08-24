@@ -101,6 +101,7 @@ class TCPSIPEndpoint < BaseEndpoint
     def new_source ip, port
       return TCPSource.new ip, port
     end
+
     alias_method :new_connection, :new_source
 
     def recv_msg
@@ -160,6 +161,8 @@ class UDPSIPEndpoint < BaseEndpoint
     def new_source ip, port
       return UDPSource.new ip, port
     end
+    
+    alias_method :new_connection, :new_source
     
     def initialize_connection(lport)
         @cxn = UDPSocket.new
