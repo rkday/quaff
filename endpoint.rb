@@ -2,7 +2,7 @@
 require 'socket'
 require 'thread'
 require 'timeout'
-require_relative './sip_parser2.rb'
+require_relative './sip_parser.rb'
 require_relative './sources.rb'
 
 class BaseEndpoint
@@ -101,7 +101,8 @@ class TCPSIPEndpoint < BaseEndpoint
     def new_source ip, port
       return TCPSource.new ip, port
     end
-    
+    alias_method :new_connection, :new_source
+
     def recv_msg
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]

@@ -22,7 +22,11 @@ end
 class Call
   attr_reader :cid
 
-  def initialize(cxn, cid, uri="sip:5557777888@#{QuaffUtils.local_ip}", destination=nil, target_uri=nil)
+  def initialize(cxn,
+                 cid,
+                 uri="sip:5557777888@#{QuaffUtils.local_ip}",
+                 destination=nil,
+                 target_uri=nil)
     @cxn = cxn
     change_cid cid
     @uri = uri
