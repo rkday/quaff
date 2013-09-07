@@ -1,37 +1,15 @@
 # -*- coding: us-ascii -*-
 require 'digest/md5'
+require_relative './message.rb'
 
-class SipMessage
-    attr_accessor :type, :method, :requri, :reason, :status_code, :headers, :body
+class SipParser
+  attr_reader :state
+  def parse_start
+    @buf = ""
+    @msg = SipMessage.new
+    @state = :blank
+  end
 
-    def initialize
-        @headers = {}
-        @method, @status_code, @reason, @req_uri = nil
-        @body = ""
-    end
-
-    def all_headers hdr
-        return @headers[hdr]
-    end
-
-    def header hdr
-        return @headers[hdr][0] unless @headers[hdr].nil?
-    end
-
-    alias_method :first_header, :header
-
-    def to_s
-       "#{@method} #{@status_code} #{@headers}"
-    end
-
-end
-
-  class SipParser
-    attr_reader :state
-    def parse_start
-        @buf = ""
-        @msg = SipMessage.new
-        @state = :blank
   def parse_partial(data)
     return nil if data.nil?
     data.lines.each do |line|
@@ -120,23 +98,23 @@ end
 
 end
 
-  def gen_nonce auth_pairs, username, passwd, method, sip_uri         
-    a1 = username + ":" + auth_pairs["realm"] + ":" + passwd
-    a2 = method + ":" + sip_uri
-    ha1 = Digest::MD5::hexdigest(a1)
-    ha2 = Digest::MD5::hexdigest(a2)
-    digest = Digest::MD5.hexdigest(ha1 + ":" + auth_pairs["nonce"] + ":" + ha2)
-    return digest
-  end
+def gen_nonce auth_pairs, username, passwd, method, sip_uri         
+  a1 = username + ":" + auth_pairs["realm"] + ":" + passwd
+  a2 = method + ":" + sip_uri
+  ha1 = Digest::MD5::hexdigest(a1)
+  ha2 = Digest::MD5::hexdigest(a2)
+  digest = Digest::MD5.hexdigest(ha1 + ":" + auth_pairs["nonce"] + ":" + ha2)
+  return digest
+end
 
-  def gen_auth_header auth_line, username, passwd, method, sip_uri
-    # Split auth line on commas
-    auth_pairs = {}
-    auth_line.sub("Digest ", "").split(",") .each do |pair| 
-      key, value = pair.split "="
-      auth_pairs[key.gsub(" ", "")] = value.gsub("\"", "").gsub(" ", "")
-    end
-    digest = gen_nonce auth_pairs, username, passwd, method, sip_uri         
-    return %Q!Digest username="#{username}",realm="#{auth_pairs['realm']}",nonce="#{auth_pairs['nonce']}",uri="#{sip_uri}",response="#{digest}",algorithm="#{auth_pairs['algorithm']}",opaque="#{auth_pairs['opaque']}"!
-    # Return Authorization header with fields username, realm, nonce, uri, nc, cnonce, response, opaque
+def gen_auth_header auth_line, username, passwd, method, sip_uri
+  # Split auth line on commas
+  auth_pairs = {}
+  auth_line.sub("Digest ", "").split(",") .each do |pair| 
+    key, value = pair.split "="
+    auth_pairs[key.gsub(" ", "")] = value.gsub("\"", "").gsub(" ", "")
   end
+  digest = gen_nonce auth_pairs, username, passwd, method, sip_uri         
+  return %Q!Digest username="#{username}",realm="#{auth_pairs['realm']}",nonce="#{auth_pairs['nonce']}",uri="#{sip_uri}",response="#{digest}",algorithm="#{auth_pairs['algorithm']}",opaque="#{auth_pairs['opaque']}"!
+  # Return Authorization header with fields username, realm, nonce, uri, nc, cnonce, response, opaque
+end

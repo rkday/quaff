@@ -1,6 +1,7 @@
 # -*- coding: us-ascii -*-
 require_relative './utils.rb'
 require_relative './sources.rb'
+require_relative './message.rb'
 
 class CSeq
   def initialize cseq_str
@@ -16,7 +17,7 @@ class CSeq
   def to_s
     "#{@num.to_s} #{@method}"
   end
-  
+
 end
 
 class Call
@@ -47,7 +48,7 @@ class Call
   def update_branch
     @last_Via = "SIP/2.0/#{@cxn.transport} #{QuaffUtils.local_ip}:#{@cxn.local_port};rport;branch=#{QuaffUtils.new_branch}"
   end
-  
+
   def create_dialog msg
     set_callee msg.first_header("Contact")
     @routeset = msg.all_headers("Record-Route")
@@ -72,7 +73,7 @@ class Call
     if /<(.*)>/ =~ uri
       uri = $1
     end
-    
+
     @sip_destination = "#{uri}"
     @last_To = "<#{uri}>"
   end
@@ -90,7 +91,8 @@ class Call
     rescue
       raise "#{ @uri } timed out waiting for #{ method }"
     end
-    unless data["message"].type == :request and Regexp.new(method) =~ data["message"].method
+    unless data["message"].type == :request \
+      and Regexp.new(method) =~ data["message"].method
       raise (data['message'].to_s || "Message is nil!")
     end
     data
@@ -102,7 +104,8 @@ class Call
     rescue
       raise "#{ @uri } timed out waiting for #{ code }"
     end
-    unless data["message"].type == :response and Regexp.new(code) =~ data["message"].status_code
+    unless data["message"].type == :response \
+      and Regexp.new(code) =~ data["message"].status_code
       raise "Expected #{ code}, got #{data["message"].status_code || data['message']}"
     end
     data
@@ -126,7 +129,7 @@ class Call
     send_something(msg, retrans)
   end
 
-  def build_message headers, type, method_or_code
+  def build_message headers, type, method=nil, code=nil, phrase=nil
     defaults = {
       "From" => @last_From,
       "To" => @last_To,
@@ -139,7 +142,8 @@ class Call
       "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
     }
 
-    if type == :request
+    is_request = method.nil?
+    if is_request
       defaults['Route'] = @routeset
     else
       defaults['Record-Route'] = @routeset
@@ -147,25 +151,8 @@ class Call
 
     defaults.merge! headers
 
+    SipMessage.new(method, code, phrase, @sip_destination, "", defaults.merge!(headers)).to_s
 
-    if type == :request
-      msg = "#{method_or_code} #{@sip_destination} SIP/2.0\r\n"
-    else
-      msg = "SIP/2.0 #{ method_or_code }\r\n"
-    end
-
-    defaults.each do |key, value|
-      if value.nil?
-      elsif not value.kind_of? Array
-        msg += "#{key}: #{value}\r\n"
-      else value.each do |subvalue|
-          msg += "#{key}: #{subvalue}\r\n"
-        end
-      end
-    end
-    msg += "\r\n"
-
-    msg
   end
 
   def send_something(msg, retrans)
