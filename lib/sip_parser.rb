@@ -41,14 +41,14 @@ class SipParser
       parts = line.split " ", 3
       if parts[2] == "SIP/2.0"
         # Looks like a SIP request
-        @msg.method = parts[1]
-        @msg.requri = parts[2]
+        @msg.method = parts[0]
+        @msg.requri = parts[1]
         @state = :first_line_parsed
         return
       elsif parts[0] == "SIP/2.0"
         # Looks like a SIP response
-        @msg.status_code = parts[2]
-        @msg.reason = parts[3] || ""
+        @msg.status_code = parts[1]
+        @msg.reason = parts[2] || ""
         @state = :first_line_parsed
         return
       else
