@@ -111,25 +111,18 @@ class Call
     data
   end
 
-  def send_response(code, retrans=nil, headers={})
-    msg = build_message headers, :response, code
+  def send_response(code, phrase, body="", retrans=nil, headers={})
+    method = nil
+    msg = build_message headers, body, :response, method, code, phrase
     send_something(msg, retrans)
   end
 
-  def send_request(method, sdp=true, retrans=nil, headers={})
-    sdp="v=0
-      o=user1 53655765 2353687637 IN IP4 #{QuaffUtils.local_ip}
-      s=-
-      c=IN IP4 #{QuaffUtils.local_ip}
-      t=0 0
-      m=audio 7000 RTP/AVP 0
-      a=rtpmap:0 PCMU/8000"
-
-    msg = build_message headers, :request, method
-    send_something(msg, retrans)
+  def send_request(method, body="", headers={})
+    msg = build_message headers, body, :request, method
+    send_something(msg, nil)
   end
 
-  def build_message headers, type, method=nil, code=nil, phrase=nil
+  def build_message headers, body, type, method=nil, code=nil, phrase=nil
     defaults = {
       "From" => @last_From,
       "To" => @last_To,
@@ -151,7 +144,7 @@ class Call
 
     defaults.merge! headers
 
-    SipMessage.new(method, code, phrase, @sip_destination, "", defaults.merge!(headers)).to_s
+    SipMessage.new(method, code, phrase, @sip_destination, body, defaults.merge!(headers)).to_s
 
   end
 

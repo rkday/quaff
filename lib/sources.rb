@@ -38,12 +38,12 @@ class TCPSource < Source
 	attr_reader :sock
 
     def initialize ip, port
-        @sock = TCPSocket.new ip, port 
+        @sock = TCPSocket.new ip, port
         @port, @ip = port, ip
     end
 
     def send _, data
-        @sock.puts data
+        @sock.sendmsg data
     end
 
     def close cxn

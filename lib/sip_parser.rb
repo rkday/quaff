@@ -76,6 +76,7 @@ class SipParser
       @cur_hdr = header_name
       if header_name == "Content-Length"
         @state = :got_content_length
+        @msg.headers[header_name] = [header_value]
       else
         @state = :middle_of_headers
       end

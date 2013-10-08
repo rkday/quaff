@@ -7,6 +7,7 @@ class SipMessage
     @headers = headers
     @method, @status_code, @reason, @req_uri = method, status_code, reason, req_uri
     @body = body
+    @headers['Content-Length'] = [body.length]
   end
 
   def type
@@ -31,7 +32,7 @@ class SipMessage
 
   def body= body
     @body = body
-    @headers['Content-Length'] = body.length
+    @headers['Content-Length'] = [body.length]
   end
 
   def to_s
@@ -51,10 +52,13 @@ class SipMessage
         end
       end
     end
-    if body
+    if body and body != ""
       msg << "\r\n"
       msg << body
+    else
+      msg << "\r\n"
     end
+
 
     msg
   end
