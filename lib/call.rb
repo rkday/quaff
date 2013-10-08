@@ -10,7 +10,7 @@ class CSeq
   end
 
   def increment
-    @num = @num +1
+    @num = @num + 1
     to_s
   end
 
@@ -93,7 +93,7 @@ class Call
     end
     unless data["message"].type == :request \
       and Regexp.new(method) =~ data["message"].method
-      raise (data['message'].to_s || "Message is nil!")
+      raise((data['message'].to_s || "Message is nil!"))
     end
     data
   end

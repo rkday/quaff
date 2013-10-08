@@ -157,13 +157,13 @@ class UDPSIPEndpoint < BaseEndpoint
     def transport
       "UDP"
     end
-    
+
     def new_source ip, port
       return UDPSource.new ip, port
     end
-    
+
     alias_method :new_connection, :new_source
-    
+
     def initialize_connection(lport)
         @cxn = UDPSocket.new
         @cxn.bind('0.0.0.0', lport)
