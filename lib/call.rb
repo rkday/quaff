@@ -134,7 +134,7 @@ class Call
       "From" => @last_From,
       "To" => @last_To,
       "Call-ID" => @cid,
-      "CSeq" => (/\d+/ =~ method_or_code) ? @last_CSeq.to_s : (method_or_code == "ACK") ? @last_CSeq.increment : "1 #{method_or_code}",
+      "CSeq" => (type == :response) ? @last_CSeq.to_s : (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
       "Via" => @last_Via,
       "Max-Forwards" => "70",
       "Content-Length" => "0",
