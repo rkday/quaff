@@ -55,7 +55,6 @@ class SipMessage
       msg << "\r\n"
       msg << body
     end
-    msg << "\r\n"
 
     msg
   end
