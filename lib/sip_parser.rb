@@ -91,6 +91,7 @@ class SipParser
 
   def parse_line_body line
     @msg.body << line
+    @msg.body << "\r\n"
     if line == "" or @msg.body.length >= @msg.header("Content-Length").to_i
       @state = :done
     end
