@@ -1,5 +1,5 @@
 require 'socket'
-
+module Quaff
 class Source
     def remote_ip
         @ip
@@ -57,4 +57,5 @@ class TCPSourceFromSocket < TCPSource
       @sock = sock
       @port, @ip = Socket.unpack_sockaddr_in(@sock.getpeername)
     end
+end
 end

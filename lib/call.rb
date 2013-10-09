@@ -3,7 +3,8 @@ require_relative './utils.rb'
 require_relative './sources.rb'
 require_relative './message.rb'
 
-class CSeq
+module Quaff
+class CSeq # :nodoc:
   def initialize cseq_str
     @num, @method = cseq_str.split
     @num = @num.to_i
@@ -25,7 +26,7 @@ class Call
 
   def initialize(cxn,
                  cid,
-                 uri="sip:5557777888@#{QuaffUtils.local_ip}",
+                 uri="sip:5557777888@#{Utils::local_ip}",
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
@@ -46,7 +47,7 @@ class Call
   end
 
   def update_branch
-    @last_Via = "SIP/2.0/#{@cxn.transport} #{QuaffUtils.local_ip}:#{@cxn.local_port};rport;branch=#{QuaffUtils.new_branch}"
+    @last_Via = "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
   def create_dialog msg
@@ -55,18 +56,6 @@ class Call
     if msg.type == :request
       @routeset = @routeset.reverse
     end
-  end
-
-  def recv_something
-    data = @cxn.get_new_message @cid
-    @retrans = nil
-    @src = data['source']
-    @last_To = data["message"].header("To")
-    @last_From = data["message"].header("From")
-    @sip_destination ||= data["message"].header("From")
-    @last_Via = data["message"].headers["Via"]
-    @last_CSeq = CSeq.new(data["message"].header("CSeq"))
-    data
   end
 
   def set_callee uri
@@ -122,55 +111,10 @@ class Call
     send_something(msg, nil)
   end
 
-  def build_message headers, body, type, method=nil, code=nil, phrase=nil
-    defaults = {
-      "From" => @last_From,
-      "To" => @last_To,
-      "Call-ID" => @cid,
-      "CSeq" => (type == :response) ? @last_CSeq.to_s : (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
-      "Via" => @last_Via,
-      "Max-Forwards" => "70",
-      "Content-Length" => "0",
-      "User-Agent" => "Quaff SIP Scripting Engine",
-      "Contact" => "<sip:quaff@#{QuaffUtils.local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
-    }
-
-    is_request = method.nil?
-    if is_request
-      defaults['Route'] = @routeset
-    else
-      defaults['Record-Route'] = @routeset
-    end
-
-    defaults.merge! headers
-
-    SipMessage.new(method, code, phrase, @sip_destination, body, defaults.merge!(headers)).to_s
-
-  end
-
-  def send_something(msg, retrans)
-    @cxn.send(msg, @src)
-    if retrans and (@transport == "UDP") then
-      @retrans = true
-      Thread.new do
-        timer = @t1
-        sleep timer
-        while @retrans do
-          #puts "Retransmitting on call #{ @cid }"
-          @cxn.send(msg, @src)
-          timer *=2
-          if timer < @t2 then
-            raise "Too many retransmits!"
-          end
-          sleep timer
-        end
-      end
-    end
-  end
-
   def end_call
     @cxn.mark_call_dead @cid
   end
+
 
   def clear_tag str
     str
@@ -207,4 +151,66 @@ class Call
     register @username, @password, 0
   end
 
+  private
+  def recv_something
+    data = @cxn.get_new_message @cid
+    @retrans = nil
+    @src = data['source']
+    @last_To = data["message"].header("To")
+    @last_From = data["message"].header("From")
+    @sip_destination ||= data["message"].header("From")
+    @last_Via = data["message"].headers["Via"]
+    @last_CSeq = CSeq.new(data["message"].header("CSeq"))
+    data
+  end
+
+
+
+  def build_message headers, body, type, method=nil, code=nil, phrase=nil
+    defaults = {
+      "From" => @last_From,
+      "To" => @last_To,
+      "Call-ID" => @cid,
+      "CSeq" => (type == :response) ? @last_CSeq.to_s : (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
+      "Via" => @last_Via,
+      "Max-Forwards" => "70",
+      "Content-Length" => "0",
+      "User-Agent" => "Quaff SIP Scripting Engine",
+      "Contact" => "<sip:quaff@#{Utils::local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
+    }
+
+    is_request = method.nil?
+    if is_request
+      defaults['Route'] = @routeset
+    else
+      defaults['Record-Route'] = @routeset
+    end
+
+    defaults.merge! headers
+
+    SipMessage.new(method, code, phrase, @sip_destination, body, defaults.merge!(headers)).to_s
+
+  end
+
+  def send_something(msg, retrans)
+    @cxn.send(msg, @src)
+    if retrans and (@transport == "UDP") then
+      @retrans = true
+      Thread.new do
+        timer = @t1
+        sleep timer
+        while @retrans do
+          #puts "Retransmitting on call #{ @cid }"
+          @cxn.send(msg, @src)
+          timer *=2
+          if timer < @t2 then
+            raise "Too many retransmits!"
+          end
+          sleep timer
+        end
+      end
+    end
+  end
+
+end
 end

@@ -1,3 +1,4 @@
+module Quaff
 class SipMessage
   attr_accessor :method, :requri, :reason, :status_code, :headers
   attr_reader :body
@@ -63,4 +64,5 @@ class SipMessage
     msg
   end
 
+end
 end

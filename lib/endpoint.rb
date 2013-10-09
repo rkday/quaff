@@ -5,6 +5,7 @@ require 'timeout'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
 
+module Quaff
 class BaseEndpoint
     attr_accessor :msg_trace
 
@@ -31,6 +32,31 @@ class BaseEndpoint
         @lport
     end
 
+    def add_call_id cid
+        @messages[cid] ||= Queue.new
+    end
+
+    def get_new_call_id time_limit=5
+        Timeout::timeout(time_limit) { @call_ids.deq }
+    end
+
+    def get_new_message(cid, time_limit=5)
+        Timeout::timeout(time_limit) { @messages[cid].deq }
+    end
+
+    def mark_call_dead(cid)
+        @messages.delete cid
+        now = Time.now
+        @dead_calls[cid] = now + 30
+        @dead_calls = @dead_calls.keep_if {|k, v| v > now}
+    end
+
+    def send(data, source)
+        puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
+        source.send(@cxn, data)
+    end
+
+    private
     def initialize_queues
         @messages = {}
         @call_ids = Queue.new
@@ -59,30 +85,6 @@ class BaseEndpoint
         end
     end
 
-    def add_call_id cid
-        @messages[cid] ||= Queue.new
-    end
-
-    def get_new_call_id time_limit=5
-        Timeout::timeout(time_limit) { @call_ids.deq }
-    end
-
-    def get_new_message(cid, time_limit=5)
-        Timeout::timeout(time_limit) { @messages[cid].deq }
-    end
-
-    def mark_call_dead(cid)
-        @messages.delete cid
-        now = Time.now
-        @dead_calls[cid] = now + 30
-        @dead_calls = @dead_calls.keep_if {|k, v| v > now}
-    end
-
-    def send(data, source)
-        puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
-        source.send(@cxn, data)
-    end
-
 end
 
 class TCPSIPEndpoint < BaseEndpoint
@@ -102,8 +104,22 @@ class TCPSIPEndpoint < BaseEndpoint
       return TCPSource.new ip, port
     end
 
-    alias_method :new_connection, :new_source
+    def add_sock sock
+      @sockets.push sock
+    end
 
+    def terminate
+      oldsockets = @sockets.dup
+      @sockets = []
+      oldsockets.each do |s| s.close unless s.closed? end
+      mycxn = @cxn
+      @cxn = nil
+      mycxn.close
+    end
+
+
+    alias_method :new_connection, :new_source
+    private
     def recv_msg
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]
@@ -130,29 +146,9 @@ class TCPSIPEndpoint < BaseEndpoint
         queue_msg msg, TCPSourceFromSocket.new(sock)
     end
 
-    def add_sock sock
-      @sockets.push sock
-    end
-
-    def terminate
-      oldsockets = @sockets.dup
-      @sockets = []
-      oldsockets.each do |s| s.close unless s.closed? end
-      mycxn = @cxn
-      @cxn = nil
-      mycxn.close
-    end
-
 end
 
 class UDPSIPEndpoint < BaseEndpoint
-
-    def recv_msg
-        data, addrinfo = @cxn.recvfrom(65535)
-        @parser.parse_start
-        msg = @parser.parse_partial(data)
-        queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
-    end
 
     def transport
       "UDP"
@@ -164,6 +160,7 @@ class UDPSIPEndpoint < BaseEndpoint
 
     alias_method :new_connection, :new_source
 
+    private
     def initialize_connection(lport)
         @cxn = UDPSocket.new
         @cxn.bind('0.0.0.0', lport)
@@ -171,5 +168,14 @@ class UDPSIPEndpoint < BaseEndpoint
         @parser = SipParser.new
     end
 
+    def recv_msg
+        data, addrinfo = @cxn.recvfrom(65535)
+        @parser.parse_start
+        msg = @parser.parse_partial(data)
+        queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
+    end
+
+
 end
 
+end
