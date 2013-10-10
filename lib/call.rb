@@ -1,6 +1,7 @@
 # -*- coding: us-ascii -*-
 require_relative './utils.rb'
 require_relative './sources.rb'
+require_relative './auth.rb'
 require_relative './message.rb'
 
 module Quaff
@@ -135,13 +136,13 @@ class Call
   def register username=@username, password=@password, expires="3600"
     @username, @password = username, password
     set_callee(@uri)
-    send_request("REGISTER", nil, nil, { "Expires" => expires.to_s })
+    send_request("REGISTER", "", { "Expires" => expires.to_s })
     response_data = recv_response("401|200")
     if response_data['message'].status_code == "401"
       send_request("ACK")
-      auth_hdr = gen_auth_header response_data['message'].header("WWW-Authenticate"), username, password, "REGISTER", @uri
+      auth_hdr = Quaff::Auth.gen_auth_header response_data['message'].header("WWW-Authenticate"), username, password, "REGISTER", @uri
       update_branch
-      send_request("REGISTER", nil, nil, {"Authorization" =>  auth_hdr, "Expires" => expires.to_s})
+      send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
       recv_response("200")
     end
     return true
