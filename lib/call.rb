@@ -55,10 +55,6 @@ class Call
 
   def create_dialog msg
     set_callee msg.first_header("Contact")
-    @routeset = msg.all_headers("Record-Route")
-    if msg.type == :request
-      @routeset = @routeset.reverse
-    end
   end
 
   def set_callee uri
@@ -86,6 +82,9 @@ class Call
       and Regexp.new(method) =~ data["message"].method
       raise((data['message'].to_s || "Message is nil!"))
     end
+    unless data['message'].all_headers("Record-Route").nil?
+      @routeset = data['message'].all_headers("Record-Route")
+    end
     data
   end
 
@@ -98,6 +97,9 @@ class Call
     unless data["message"].type == :response \
       and Regexp.new(code) =~ data["message"].status_code
       raise "Expected #{ code}, got #{data["message"].status_code || data['message']}"
+    end
+    unless data['message'].all_headers("Record-Route").nil?
+      @routeset = data['message'].all_headers("Record-Route").reverse
     end
     data
   end
@@ -171,7 +173,7 @@ class Call
       "Contact" => "<sip:quaff@#{Utils::local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
     }
 
-    is_request = method.nil?
+    is_request = code.nil?
     if is_request
       defaults['Route'] = @routeset
     else
