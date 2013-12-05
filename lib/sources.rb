@@ -22,7 +22,7 @@ class UDPSource < Source
         @ip, @port = ip, port
     end
 
-    def send cxn, data
+    def send_msg cxn, data
         cxn.send(data, 0, @ip, @port)
     end
 end
@@ -35,14 +35,14 @@ end
 
 
 class TCPSource < Source
-	attr_reader :sock
+  attr_reader :sock
 
     def initialize ip, port
         @sock = TCPSocket.new ip, port
         @port, @ip = port, ip
     end
 
-    def send _, data
+    def send_msg _, data
         @sock.sendmsg data
     end
 

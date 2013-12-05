@@ -31,12 +31,14 @@ class Call
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
+    @cseq_number = 1
     change_cid cid
     @uri = uri
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @last_From = "<#{uri}>"
     update_branch
+    @last_To = "<#{target_uri}>"
     setdest(destination, recv_from_this: true) if destination
     set_callee target_uri if target_uri
     @routeset = []
@@ -65,7 +67,6 @@ class Call
     end
 
     @sip_destination = "#{uri}"
-    @last_To = "<#{uri}>"
   end
 
   def setdest source, options={}
@@ -133,25 +134,6 @@ class Call
     return TCPSource.new sock
   end
 
-  def register username=@username, password=@password, expires="3600"
-    @username, @password = username, password
-    set_callee(@uri)
-    send_request("REGISTER", "", { "Expires" => expires.to_s })
-    response_data = recv_response("401|200")
-    if response_data['message'].status_code == "401"
-      send_request("ACK")
-      auth_hdr = Quaff::Auth.gen_auth_header response_data['message'].header("WWW-Authenticate"), username, password, "REGISTER", @uri
-      update_branch
-      send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
-      recv_response("200")
-    end
-    return true
-  end
-
-  def unregister
-    register @username, @password, 0
-  end
-
   private
   def recv_something
     data = @cxn.get_new_message @cid
@@ -165,14 +147,23 @@ class Call
     data
   end
 
-
+  def calculate_cseq type, method
+    if (type == :response)
+      @last_CSeq.to_s
+    elsif (method == "ACK")
+      @last_CSeq.to_s
+    else
+      @cseq_number = @cseq_number + 1
+      "#{@cseq_number} #{method}"
+    end
+  end
 
   def build_message headers, body, type, method=nil, code=nil, phrase=nil
     defaults = {
       "From" => @last_From,
       "To" => @last_To,
       "Call-ID" => @cid,
-      "CSeq" => (type == :response) ? @last_CSeq.to_s : (method == "ACK") ? @last_CSeq.increment : "1 #{method}",
+      "CSeq" => calculate_cseq(type, method),
       "Via" => @last_Via,
       "Max-Forwards" => "70",
       "Content-Length" => "0",
@@ -194,7 +185,7 @@ class Call
   end
 
   def send_something(msg, retrans)
-    @cxn.send(msg, @src)
+    @cxn.send_msg(msg, @src)
     if retrans and (@transport == "UDP") then
       @retrans = true
       Thread.new do

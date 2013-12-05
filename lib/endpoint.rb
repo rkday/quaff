@@ -2,12 +2,17 @@
 require 'socket'
 require 'thread'
 require 'timeout'
+require 'digest/md5'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
 
 module Quaff
-class BaseEndpoint
-    attr_accessor :msg_trace
+  class BaseEndpoint
+    attr_accessor :msg_trace, :uri
+
+    def generate_call_id
+      digest = Digest::MD5.hexdigest(rand(60000).to_s)
+    end
 
     def terminate
     end
@@ -15,17 +20,29 @@ class BaseEndpoint
     def add_sock sock
     end
 
-    def new_call call_id=nil, *args
+    def incoming_call *args
       call_id ||= get_new_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
       Call.new(self, call_id, *args)
     end
 
-    def initialize(lport)
-        @lport = lport
-        initialize_connection lport
-        initialize_queues
-        start
+    def outgoing_call to_uri
+      call_id = generate_call_id
+      puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
+      Call.new(self, call_id, @uri, @outbound_connection, to_uri)
+    end
+
+    def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
+      @uri = uri
+      @username = username
+      @password = password
+      @lport = local_port
+      initialize_connection @lport
+      if outbound_proxy
+        @outbound_connection = new_connection(outbound_proxy, outbound_port)
+      end
+      initialize_queues
+      start
     end
 
     def local_port
@@ -36,12 +53,12 @@ class BaseEndpoint
         @messages[cid] ||= Queue.new
     end
 
-    def get_new_call_id time_limit=5
+    def get_new_call_id time_limit=30
         Timeout::timeout(time_limit) { @call_ids.deq }
     end
 
-    def get_new_message(cid, time_limit=5)
-        Timeout::timeout(time_limit) { @messages[cid].deq }
+    def get_new_message(cid, time_limit=30)
+      Timeout::timeout(time_limit) { @messages[cid].deq }
     end
 
     def mark_call_dead(cid)
@@ -51,9 +68,27 @@ class BaseEndpoint
         @dead_calls = @dead_calls.keep_if {|k, v| v > now}
     end
 
-    def send(data, source)
+    def send_msg(data, source)
         puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
-        source.send(@cxn, data)
+        source.send_msg(@cxn, data)
+    end
+
+    def register expires="3600"
+      call = outgoing_call(@uri)
+      call.send_request("REGISTER", "", { "Expires" => expires.to_s })
+      response_data = call.recv_response("401|200")
+      if response_data['message'].status_code == "401"
+        call.send_request("ACK")
+        auth_hdr = Quaff::Auth.gen_auth_header response_data['message'].header("WWW-Authenticate"), @username, @password, "REGISTER", @uri
+        call.update_branch
+        call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
+        call.recv_response("200")
+      end
+      return true
+    end
+
+    def unregister
+      register 0
     end
 
     private
@@ -85,9 +120,9 @@ class BaseEndpoint
         end
     end
 
-end
+  end
 
-class TCPSIPEndpoint < BaseEndpoint
+  class TCPSIPEndpoint < BaseEndpoint
     attr_accessor :sockets
 
     def initialize_connection(lport)
@@ -139,16 +174,15 @@ class TCPSIPEndpoint < BaseEndpoint
     def recv_msg_from_sock(sock)
         @parser.parse_start
         msg = nil
-        while msg.nil? and not sock.closed? do
-            line = sock.gets
-            msg = @parser.parse_partial line
-        end
+      while msg.nil? and not sock.closed? do
+        line = sock.gets
+        msg = @parser.parse_partial line
+      end
         queue_msg msg, TCPSourceFromSocket.new(sock)
     end
+  end
 
-end
-
-class UDPSIPEndpoint < BaseEndpoint
+  class UDPSIPEndpoint < BaseEndpoint
 
     def transport
       "UDP"
@@ -174,8 +208,6 @@ class UDPSIPEndpoint < BaseEndpoint
         msg = @parser.parse_partial(data)
         queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
     end
-
-
-end
+  end
 
 end

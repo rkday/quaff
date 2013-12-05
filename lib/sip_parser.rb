@@ -64,11 +64,6 @@ module Quaff
       if line.start_with? " "
         @msg.headers[@cur_hdr][-1] += " "
         @msg.headers[@cur_hdr][-1] += line.lstrip
-        if $1 == "Content-Length"
-          @state = :got_content_length
-        else
-          @state = :middle_of_headers
-        end
       elsif line.include? ":"
         parts = line.split ":", 2
         header_name, header_value = parts[0].rstrip, parts[1].lstrip
@@ -79,10 +74,12 @@ module Quaff
           @state = :got_content_length
           @msg.headers[header_name] = [header_value]
         else
-          @state = :middle_of_headers
+          if (@state != :got_content_length)
+            @state = :middle_of_headers
+          end
         end
       elsif line == ""
-        if @state == :got_content_length and @msg.header("Content-Length").to_i > 0
+        if (@state == :got_content_length) and (@msg.header("Content-Length").to_i > 0)
           @state = :parsing_body
         else
           @state = :done
