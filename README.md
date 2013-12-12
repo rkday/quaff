@@ -2,7 +2,7 @@ Quaff is a Ruby library for writing SIP test scenarios. It is an
 attempt to create something similar to [SIPp](http://sipp.sf.net) (which I also maintain),
 but which can be more easily integrated into other test suites.
 
-The current version is 0.3.2, and it can be installed as a Ruby gem
+The current version is 0.3.3, and it can be installed as a Ruby gem
 with 'gem install quaff' (see
 [the RubyGems page](https://rubygems.org/gems/quaff) for more info).
 Quaff does not support SDP, but

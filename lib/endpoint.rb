@@ -138,11 +138,7 @@ module Quaff
     end
 
     def new_source host, port
-      if /^(\d+\.){3}\d+$/ =~ host
-        return TCPSource.new host, port
-      else
-        return TCPSource.new @resolver.ipaddress(host), port
-      end
+      return TCPSource.new host, port
     end
 
     def add_sock sock
@@ -194,8 +190,12 @@ module Quaff
       "UDP"
     end
 
-    def new_source ip, port
-      return UDPSource.new ip, port
+    def new_source host, port
+      if /^(\d+\.){3}\d+$/ =~ host
+        return UDPSource.new host, port
+      else
+        return UDPSource.new @resolver.getaddress(host).to_s, port
+      end
     end
 
     alias_method :new_connection, :new_source
