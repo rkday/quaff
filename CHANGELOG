@@ -1,0 +1,6 @@
+Version 0.3.2
+	-- Started changelog
+	-- Resolve DNS when a connection starts, so that all UDP messages
+	go to the same host
+	-- Strip angle brackets from SIP URI when copying it into the Request-URI
+

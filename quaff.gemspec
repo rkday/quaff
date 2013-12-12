@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'quaff'
-  s.version     = '0.3.1'
+  s.version     = '0.3.2'
   s.summary     = "Quaff"
   s.description = "A Ruby library for writing SIP test scenarios"
   s.authors     = ["Rob Day"]

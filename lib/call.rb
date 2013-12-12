@@ -143,7 +143,7 @@ class Call
     @src = data['source']
     @last_To = data["message"].header("To")
     @last_From = data["message"].header("From")
-    @sip_destination ||= data["message"].header("From")
+    set_callee data["message"].header("From")
     @last_Via = data["message"].headers["Via"]
     @last_CSeq = CSeq.new(data["message"].header("CSeq"))
     data

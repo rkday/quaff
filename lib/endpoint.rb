@@ -2,6 +2,7 @@
 require 'socket'
 require 'thread'
 require 'timeout'
+require 'resolv'
 require 'digest/md5'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
@@ -34,6 +35,7 @@ module Quaff
 
     def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
       @uri = uri
+      @resolver = Resolv::DNS.new
       @username = username
       @password = password
       @lport = local_port
@@ -135,8 +137,12 @@ module Quaff
       "TCP"
     end
 
-    def new_source ip, port
-      return TCPSource.new ip, port
+    def new_source host, port
+      if /^(\d+\.){3}\d+$/ =~ host
+        return TCPSource.new host, port
+      else
+        return TCPSource.new @resolver.ipaddress(host), port
+      end
     end
 
     def add_sock sock
