@@ -124,6 +124,11 @@ class Call
     str
   end
 
+  def assoc_with_msg(msg)
+    @last_Via = msg.all_headers("Via")
+    @last_CSeq = CSeq.new(msg.header("CSeq"))
+  end
+
   def clone_details other_message
     @headers['To'] = [clear_tag(other_message.header("To"))]
     @headers['From'] = [clear_tag(other_message.header("From"))]
