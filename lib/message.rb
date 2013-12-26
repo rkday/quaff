@@ -1,6 +1,6 @@
 module Quaff
 class SipMessage
-  attr_accessor :method, :requri, :reason, :status_code, :headers
+  attr_accessor :method, :requri, :reason, :status_code, :headers, :source
   attr_reader :body
 
   def initialize method=nil, status_code=nil, reason=nil,
@@ -9,6 +9,14 @@ class SipMessage
     @method, @status_code, @reason, @req_uri = method, status_code, reason, req_uri
     @body = body
     @headers['Content-Length'] = [body.length]
+  end
+
+  def [] key
+    if key == "message"
+      self
+    elsif key == "source"
+      @source
+    end
   end
 
   def type

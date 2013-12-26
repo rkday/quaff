@@ -5,21 +5,21 @@ require_relative './auth.rb'
 require_relative './message.rb'
 
 module Quaff
-class CSeq # :nodoc:
-  def initialize cseq_str
-    @num, @method = cseq_str.split
-    @num = @num.to_i
-  end
+  class CSeq # :nodoc:
+    attr_reader :num
+    def initialize cseq_str
+      @num, @method = cseq_str.split
+      @num = @num.to_i
+    end
 
-  def increment
-    @num = @num + 1
-    to_s
-  end
+    def increment
+      @num = @num + 1
+      to_s
+    end
 
-  def to_s
-    "#{@num.to_s} #{@method}"
-  end
-
+    def to_s
+      "#{@num.to_s} #{@method}"
+    end
 end
 
 class Call
@@ -49,8 +49,14 @@ class Call
     @cxn.add_call_id @cid
   end
 
-  def update_branch
-    @last_Via = "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
+  def update_branch via_hdr=nil
+    via_hdr ||= new_transaction
+    @last_Via = via_hdr
+  end
+
+  def new_transaction
+    "SIP/2.0/#{@cxn.transport}
+             ##{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
   def create_dialog msg
@@ -72,34 +78,40 @@ class Call
     end
   end
 
-  def recv_request(method)
+  def recv_request(method, dialog_creating=false)
     begin
-      data = recv_something
+      msg = recv_something
     rescue
       raise "#{ @uri } timed out waiting for #{ method }"
     end
-    unless data["message"].type == :request \
-      and Regexp.new(method) =~ data["message"].method
-      raise((data['message'].to_s || "Message is nil!"))
+    unless msg.type == :request \
+      and Regexp.new(method) =~ msg.method
+      raise((msg.to_s || "Message is nil!"))
     end
-    unless data['message'].all_headers("Record-Route").nil?
-      @routeset = data['message'].all_headers("Record-Route")
+    if dialog_creating
+      set_callee msg.first_header("Contact")
+      unless msg.all_headers("Record-Route").nil?
+        @routeset = msg.all_headers("Record-Route")
+      end
     end
     data
   end
 
-  def recv_response(code)
+  def recv_response(code, dialog_creating=false)
     begin
-      data = recv_something
+      msg = recv_something
     rescue
       raise "#{ @uri } timed out waiting for #{ code }"
     end
-    unless data["message"].type == :response \
-      and Regexp.new(code) =~ data["message"].status_code
-      raise "Expected #{ code}, got #{data["message"].status_code || data['message']}"
+    unless msg.type == :response \
+      and Regexp.new(code) =~ msg.status_code
+      raise "Expected #{ code}, got #{msg.status_code || msg}"
     end
-    unless data['message'].all_headers("Record-Route").nil?
-      @routeset = data['message'].all_headers("Record-Route").reverse
+    if dialog_creating
+      set_callee msg.first_header("Contact")
+      unless msg.all_headers("Record-Route").nil?
+        @routeset = msg.all_headers("Record-Route").reverse
+      end
     end
     data
   end
@@ -118,7 +130,6 @@ class Call
   def end_call
     @cxn.mark_call_dead @cid
   end
-
 
   def clear_tag str
     str
@@ -143,14 +154,14 @@ class Call
 
   private
   def recv_something
-    data = @cxn.get_new_message @cid
+    msg = @cxn.get_new_message @cid
     @retrans = nil
-    @src = data['source']
-    @last_To = data["message"].header("To")
-    @last_From = data["message"].header("From")
-    set_callee data["message"].header("From")
-    @last_Via = data["message"].headers["Via"]
-    @last_CSeq = CSeq.new(data["message"].header("CSeq"))
+    @src = msg.source
+    @last_To = msg.header("To")
+    @last_From = msg.header("From")
+    set_callee msg.header("From")
+    @last_Via = msg.headers["Via"]
+    @last_CSeq = CSeq.new(msg.header("CSeq"))
     data
   end
 
@@ -158,7 +169,7 @@ class Call
     if (type == :response)
       @last_CSeq.to_s
     elsif (method == "ACK")
-      @last_CSeq.to_s
+      "#{@last_CSeq.num} ACK"
     else
       @cseq_number = @cseq_number + 1
       "#{@cseq_number} #{method}"
