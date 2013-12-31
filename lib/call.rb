@@ -50,13 +50,14 @@ class Call
   end
 
   def update_branch via_hdr=nil
-    via_hdr ||= new_transaction
+    via_hdr ||= get_new_via_hdr
     @last_Via = via_hdr
   end
 
-  def new_transaction
-    "SIP/2.0/#{@cxn.transport}
-             ##{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
+  alias_method :new_transaction, :update_branch
+
+  def get_new_via_hdr
+    "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
   def create_dialog msg
@@ -78,7 +79,7 @@ class Call
     end
   end
 
-  def recv_request(method, dialog_creating=false)
+  def recv_request(method, dialog_creating=true)
     begin
       msg = recv_something
     rescue

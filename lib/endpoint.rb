@@ -4,7 +4,7 @@ require 'thread'
 require 'timeout'
 require 'resolv'
 require 'digest/md5'
-require 'milenage'
+#require 'milenage'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
 
@@ -111,9 +111,9 @@ module Quaff
         auth_hdr = Quaff::Auth.gen_auth_header response_data.header("WWW-Authenticate"), @username, @password, "REGISTER", @uri
         call.update_branch
         call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
-        call.recv_response("200")
+        response_data = call.recv_response("200")
       end
-      return true
+      return response_data # always the 200 OK
     end
 
     def unregister
