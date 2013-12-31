@@ -94,7 +94,7 @@ class Call
         @routeset = msg.all_headers("Record-Route")
       end
     end
-    data
+    msg
   end
 
   def recv_response(code, dialog_creating=false)
@@ -113,7 +113,11 @@ class Call
         @routeset = msg.all_headers("Record-Route").reverse
       end
     end
-    data
+    msg
+  end
+
+  def recv_response_and_create_dialog(code)
+    recv_response code, true
   end
 
   def send_response(code, phrase, body="", retrans=nil, headers={})
@@ -162,7 +166,7 @@ class Call
     set_callee msg.header("From")
     @last_Via = msg.headers["Via"]
     @last_CSeq = CSeq.new(msg.header("CSeq"))
-    data
+    msg
   end
 
   def calculate_cseq type, method

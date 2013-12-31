@@ -4,6 +4,7 @@ require 'thread'
 require 'timeout'
 require 'resolv'
 require 'digest/md5'
+require 'milenage'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
 
@@ -37,6 +38,16 @@ module Quaff
       call_id = generate_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @uri, @outbound_connection, to_uri)
+    end
+
+    def create_client(uri, username, password, outbound_proxy, outbound_port=5060)
+    end
+
+    def create_server(uri, local_port=5060, outbound_proxy=nil, outbound_port=5060)
+
+    end
+
+    def create_aka_client(uri, username, key, op, outbound_proxy, outbound_port=5060)
     end
 
     def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
@@ -81,12 +92,22 @@ module Quaff
         source.send_msg(@cxn, data)
     end
 
-    def register expires="3600"
+    def set_aka_credentials key, op
+      @kernel = Milenage.Kernel key
+      @kernel.op = op
+    end
+
+    def register expires="3600", aka=false
       call = outgoing_call(@uri)
       call.send_request("REGISTER", "", { "Expires" => expires.to_s })
       response_data = call.recv_response("401|200")
       if response_data.status_code == "401"
-        call.send_request("ACK")
+        if aka
+          rand = Quaff::Auth.extract_rand response_data.header("WWW-Authenticate")
+          password = @kernel.f3 rand
+        else
+          password = @password
+        end
         auth_hdr = Quaff::Auth.gen_auth_header response_data.header("WWW-Authenticate"), @username, @password, "REGISTER", @uri
         call.update_branch
         call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
