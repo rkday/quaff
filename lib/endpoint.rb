@@ -98,9 +98,10 @@ module Quaff
     end
 
     def register expires="3600", aka=false
-      call = outgoing_call(@uri)
-      call.send_request("REGISTER", "", { "Expires" => expires.to_s })
-      response_data = call.recv_response("401|200")
+      @reg_call ||= outgoing_call(@uri)
+      auth_hdr = Quaff::Auth.gen_empty_auth_header @username
+      @reg_call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s})
+      response_data = @reg_call.recv_response("401|200")
       if response_data.status_code == "401"
         if aka
           rand = Quaff::Auth.extract_rand response_data.header("WWW-Authenticate")
@@ -109,9 +110,9 @@ module Quaff
           password = @password
         end
         auth_hdr = Quaff::Auth.gen_auth_header response_data.header("WWW-Authenticate"), @username, @password, "REGISTER", @uri
-        call.update_branch
-        call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s, "CSeq" => "2 REGISTER"})
-        response_data = call.recv_response("200")
+        @reg_call.update_branch
+        @reg_call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s})
+        response_data = @reg_call.recv_response("200")
       end
       return response_data # always the 200 OK
     end

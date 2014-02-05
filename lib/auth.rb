@@ -22,6 +22,13 @@ module Quaff
       return Base64.decode64(auth_pairs["nonce"])[0..15]
     end
 
+    def Auth.gen_empty_auth_header username
+      return %Q!Digest username="#{username}",realm="",nonce="",uri="",response=""!
+      # Return Authorization header with only the username field set,
+      # to indicate the private ID in cases where it isn't linked to
+      # the SIP URI
+    end
+
     def Auth.gen_auth_header auth_line, username, passwd, method, sip_uri
       # Split auth line on commas
       auth_pairs = {}
