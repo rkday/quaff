@@ -1,0 +1,18 @@
+Version 0.4.1
+    * Fix REGISTER bug - make all REGISTERs from an endpoint share a Call-ID as required by the SIP RFC
+    * Send a dummy Authorization header on initial REGISTERs, to allow the registrar to learn the private ID
+
+Version 0.4.0
+    *  Beginnings of IMS AKA authentication support
+    * Rework API - add "dialog_creating" parameter when receiving a message rather than needing a separate API call to indicate this
+    * Add "assoc_with_msg" method to make it easier to handle multiple transactions at once
+    * Rename "new_transaction" to "get_new_via_hdr" for clarity
+
+Version 0.3.3
+    * Fix bug in TCP DNS resolution introduced by 0.3.2
+
+Version 0.3.2
+    * Started changelog
+    * Resolve DNS when a connection starts, so that all UDP messages go to the same host
+    * Strip angle brackets from SIP URI when copying it into the Request-URI
+
