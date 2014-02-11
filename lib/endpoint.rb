@@ -100,6 +100,7 @@ module Quaff
     def register expires="3600", aka=false
       @reg_call ||= outgoing_call(@uri)
       auth_hdr = Quaff::Auth.gen_empty_auth_header @username
+      @reg_call.update_branch
       @reg_call.send_request("REGISTER", "", {"Authorization" =>  auth_hdr, "Expires" => expires.to_s})
       response_data = @reg_call.recv_response("401|200")
       if response_data.status_code == "401"

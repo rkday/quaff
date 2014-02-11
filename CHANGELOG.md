@@ -1,3 +1,5 @@
+Version 0.4.2
+    * Fix REGISTER bug - reset branch ID before sending a re-register
 Version 0.4.1
     * Fix REGISTER bug - make all REGISTERs from an endpoint share a Call-ID as required by the SIP RFC
     * Send a dummy Authorization header on initial REGISTERs, to allow the registrar to learn the private ID
