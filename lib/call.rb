@@ -27,6 +27,7 @@ class Call
 
   def initialize(cxn,
                  cid,
+                 instance_id=nil,
                  uri="sip:5557777888@#{Utils::local_ip}",
                  destination=nil,
                  target_uri=nil)
@@ -42,6 +43,7 @@ class Call
     setdest(destination, recv_from_this: true) if destination
     set_callee target_uri if target_uri
     @routeset = []
+    @instance_id = instance_id
   end
 
   def change_cid cid
@@ -193,6 +195,10 @@ class Call
       "User-Agent" => "Quaff SIP Scripting Engine",
       "Contact" => "<sip:quaff@#{Utils::local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
     }
+
+    if @instance_id
+      defaults["Contact"] += ";+sip.instance=\"<urn:uuid:"+@instance_id+">\""
+    end
 
     is_request = code.nil?
     if is_request

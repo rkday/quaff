@@ -1,3 +1,7 @@
+Version 0.5.0
+    * Add support for setting RFC 5626 instance IDs
+    * Improve logging by keeping a msg_log variable for each endpoint which stores its sent/received messages
+
 Version 0.4.2
     * Fix REGISTER bug - reset branch ID before sending a re-register
 Version 0.4.1

@@ -10,7 +10,8 @@ require_relative './sources.rb'
 
 module Quaff
   class BaseEndpoint
-    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket
+    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :instance_id
+    attr_reader :msg_log
 
     def setup_sdp
       @sdp_socket = UDPSocket.new
@@ -31,13 +32,13 @@ module Quaff
     def incoming_call *args
       call_id ||= get_new_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
-      Call.new(self, call_id, *args)
+      Call.new(self, call_id, @instance_id, *args)
     end
 
     def outgoing_call to_uri
       call_id = generate_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
-      Call.new(self, call_id, @uri, @outbound_connection, to_uri)
+      Call.new(self, call_id, @instance_id, @uri, @outbound_connection, to_uri)
     end
 
     def create_client(uri, username, password, outbound_proxy, outbound_port=5060)
@@ -51,6 +52,7 @@ module Quaff
     end
 
     def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
+      @msg_log = Array.new
       @uri = uri
       @resolver = Resolv::DNS.new
       @username = username
@@ -88,7 +90,8 @@ module Quaff
     end
 
     def send_msg(data, source)
-        puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
+      @msg_log.push "Endpoint on #{@lport} sending:\n\n#{data.strip}\n\nto #{source.inspect}"
+      puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
         source.send_msg(@cxn, data)
     end
 
@@ -139,6 +142,7 @@ module Quaff
     end
 
     def queue_msg(msg, source)
+      @msg_log.push "Endpoint on #{@lport} received:\n\n#{msg.to_s.strip}\n\nfrom #{source.inspect}"
       puts "Endpoint on #{@lport} received #{msg} from
                           ##{source.inspect}" if @msg_trace
       msg.source = source

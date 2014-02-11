@@ -1,12 +1,12 @@
 require 'socket'
 module Quaff
-class Source
+  class Source
     def remote_ip
-        @ip
+      @ip
     end
 
     def remote_port
-        @port
+      @port
     end
 
     def close cxn
@@ -15,47 +15,55 @@ class Source
     def sock
       nil
     end
-end
 
-class UDPSource < Source
+    def to_s
+      "#{@ip}:#{@port} (#{@transport})"
+    end
+  end
+
+  class UDPSource < Source
     def initialize ip, port
-        @ip, @port = ip, port
+      @transport = "UDP"
+      @ip, @port = ip, port
     end
 
     def send_msg cxn, data
-        cxn.send(data, 0, @ip, @port)
+      cxn.send(data, 0, @ip, @port)
     end
-end
+  end
 
-class UDPSourceFromAddrinfo < UDPSource
+  class UDPSourceFromAddrinfo < UDPSource
     def initialize addrinfo
-        @ip, @port = addrinfo[3], addrinfo[1]
+      @transport = "UDP"
+      @ip, @port = addrinfo[3], addrinfo[1]
     end
-end
+  end
 
 
-class TCPSource < Source
-  attr_reader :sock
+  class TCPSource < Source
+    attr_reader :sock
 
     def initialize ip, port
-        @sock = TCPSocket.new ip, port
-        @port, @ip = port, ip
+      @transport = "TCP"
+      @sock = TCPSocket.new ip, port
+      @port, @ip = port, ip
     end
 
     def send_msg _, data
-        @sock.sendmsg data
+      @sock.sendmsg data
     end
 
     def close cxn
-        @sock.close
-        cxn.sockets.delete(@sock)
+      @sock.close
+      cxn.sockets.delete(@sock)
     end
-end
+  end
 
-class TCPSourceFromSocket < TCPSource
+  class TCPSourceFromSocket < TCPSource
     def initialize sock
+      @transport = "TCP"
       @sock = sock
       @port, @ip = Socket.unpack_sockaddr_in(@sock.getpeername)
     end
-end
+  end
 end
