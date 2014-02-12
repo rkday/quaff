@@ -67,7 +67,7 @@ class Call
   end
 
   def set_callee uri
-    if /<(.*)>/ =~ uri
+    if /<(.*?)>/ =~ uri
       uri = $1
     end
 
