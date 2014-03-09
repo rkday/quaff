@@ -1,5 +1,6 @@
 # -*- coding: us-ascii -*-
 require 'digest/md5'
+require 'abnf'
 require_relative './message.rb'
 
 module Quaff
@@ -96,6 +97,174 @@ module Quaff
       end
     end
 
+  end
+
+  class ABNFSipParser
+    include ABNF
+
+    # Rules
+
+    def alphanum
+      Alternate.new(Alpha.new, Digit.new)
+    end
+
+    def reserved
+      AlternateChars.new(";/?:@&=+$,")
+    end
+
+    def mark
+      AlternateChars.new("-_.!~*'()")
+    end
+
+    def unreserved
+      Alternate.new(alphanum, mark)
+    end
+
+    def escaped
+      Concat.new(Char.new(?%), HexDigit.new, HexDigit.new)
+    end
+
+    def user_unreserved
+      AlternateChars.new "&=+$,;?/"
+    end
+
+    def user
+      Repetition.new([:at_least, 1], Alternate.new(unreserved, escaped, user_unreserved))
+    end
+
+    def userinfo
+      Concat.new(user, Char.new(?@))
+    end
+
+    def hostname
+      Repetition.new([:at_least, 1], Alternate.new(alphanum, Char.new(?.)))
+    end
+
+    def port
+      Repetition.new([:at_least, 1], Digit.new)
+    end
+
+    def hostport
+      Concat.new(hostname, OptionalConcat.new(Char.new(?:), port))
+    end
+
+    def paramchar
+      paramunreserved = AlternateChars.new("[]/:&+%")
+      Alternate.new(paramunreserved, unreserved, escaped)
+    end
+
+    def pname
+      Repetition.new([:at_least, 1], paramchar)
+    end
+
+    def pvalue
+      Repetition.new([:at_least, 1], paramchar)
+    end
+
+
+    def param
+      Concat.new(pname, OptionalConcat.new(Char.new(?=), pvalue))
+    end
+
+    def uri_parameters
+      Repetition.new(:any,
+                     Concat.new(Char.new(?;), param))
+    end
+
+    def sip_uri
+      Concat.new(Literal.new("sip:"),
+                 Optional.new(userinfo),
+                 hostport,
+                 uri_parameters)
+    end
+
+    def addr_spec
+      sip_uri
+    end
+
+    def wsp
+      Alternate.new(Char.new(" "), Char.new("\t"))
+    end
+
+    def lws
+      Concat.new(OptionalConcat.new(Repetition.new([:at_least, 1], wsp), Literal.new("\r\n")), Repetition.new([:at_least, 1], wsp))
+    end
+
+    def sws
+      Optional.new(lws)
+    end
+
+    def raquot
+      Concat.new(Char.new(">"), sws)
+    end
+
+    def laquot
+      Concat.new(sws, Char.new("<"))
+    end
+
+    def display_name
+      Repetition.new(:any, Alternate.new(alphanum, wsp, Char.new(?")))
+    end
+
+    def name_addr
+      Concat.new(display_name, laquot, addr_spec, raquot)
+    end
+
+    def from_param
+      param
+    end
+
+    def from_spec
+      Concat.new(Alternate.new(addr_spec, name_addr), Repetition.new(:any, Concat.new(Char.new(?;), from_param)))
+    end
+
+    def to_param
+      param
+    end
+
+    def to_spec
+      Concat.new(Alternate.new(addr_spec, name_addr), Repetition.new(:any, Concat.new(Char.new(?;), from_param)))
+    end
+  end
+
+  class ToSpec < ABNFSipParser
+    attr_accessor :params, :uri, :displayname, :is_nameaddr
+    def initialize
+      super
+      @params = {}
+      @uri = nil
+      @displayname = nil
+      @is_nameaddr = false
+    end
+
+    def to_param
+      super.set_block {|p| k, v = p.split("="); @params[k] = if v.nil? then true else v end}
+    end
+
+    def display_name
+      super.set_block {|p| @display_name = p; @is_nameaddr = true}
+    end
+
+    def addr_spec
+      super.set_block {|p| @uri = p}
+    end
+
+    def parse(str)
+      if to_spec.match(Stream.new(str))
+        true
+      else
+        false
+      end
+    end
+
+    def to_s
+      paramstr = @params.collect {|k, v| if (v == true) then ";#{k}" else ";#{k}=#{v}" end}.join("")
+      if @is_nameaddr
+        puts "#{@displayname} <#{@uri}>#{paramstr}"
+      else
+        puts "#{@uri}#{paramstr}"
+      end
+    end
   end
 
 end

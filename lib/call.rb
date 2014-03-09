@@ -1,4 +1,5 @@
 # -*- coding: us-ascii -*-
+require 'securerandom'
 require_relative './utils.rb'
 require_relative './sources.rb'
 require_relative './auth.rb'
@@ -32,18 +33,11 @@ class Call
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
-    @cseq_number = 1
-    change_cid cid
-    @uri = uri
+    setdest(destination, recv_from_this: true) if destination
     @retrans = nil
     @t1, @t2 = 0.5, 32
-    @last_From = "<#{uri}>"
-    update_branch
-    @last_To = "<#{target_uri}>"
-    setdest(destination, recv_from_this: true) if destination
-    set_callee target_uri if target_uri
-    @routeset = []
     @instance_id = instance_id
+    set_default_headers cid, uri, target_uri
   end
 
   def change_cid cid
@@ -87,11 +81,24 @@ class Call
     rescue
       raise "#{ @uri } timed out waiting for #{ method }"
     end
+
     unless msg.type == :request \
       and Regexp.new(method) =~ msg.method
       raise((msg.to_s || "Message is nil!"))
     end
+
+    unless @has_To_tag
+      @has_To_tag = true
+      tospec = ToSpec.new
+      tospec.parse(msg.header("To"))
+      tospec.params['tag'] = generate_random_tag
+      @last_To = tospec.to_s
+      @last_From = msg.header("From")
+    end
+
     if dialog_creating
+      @in_dialog = true
+
       set_callee msg.first_header("Contact")
       unless msg.all_headers("Record-Route").nil?
         @routeset = msg.all_headers("Record-Route")
@@ -110,12 +117,20 @@ class Call
       and Regexp.new(code) =~ msg.status_code
       raise "Expected #{ code}, got #{msg.status_code || msg}"
     end
+
     if dialog_creating
+      @in_dialog = true
       set_callee msg.first_header("Contact")
       unless msg.all_headers("Record-Route").nil?
         @routeset = msg.all_headers("Record-Route").reverse
       end
     end
+
+    if @in_dialog
+      @has_To_tag = true
+      @last_To = msg.header("To")
+    end
+
     msg
   end
 
@@ -138,19 +153,9 @@ class Call
     @cxn.mark_call_dead @cid
   end
 
-  def clear_tag str
-    str
-  end
-
   def assoc_with_msg(msg)
     @last_Via = msg.all_headers("Via")
     @last_CSeq = CSeq.new(msg.header("CSeq"))
-  end
-
-  def clone_details other_message
-    @headers['To'] = [clear_tag(other_message.header("To"))]
-    @headers['From'] = [clear_tag(other_message.header("From"))]
-    @headers['Route'] = [other_message.header("Route")]
   end
 
   def get_next_hop header
@@ -164,8 +169,6 @@ class Call
     msg = @cxn.get_new_message @cid
     @retrans = nil
     @src = msg.source
-    @last_To = msg.header("To")
-    @last_From = msg.header("From")
     set_callee msg.header("From")
     @last_Via = msg.headers["Via"]
     @last_CSeq = CSeq.new(msg.header("CSeq"))
@@ -231,6 +234,23 @@ class Call
         end
       end
     end
+  end
+
+  def set_default_headers cid, uri, target_uri
+    @cseq_number = 1
+    change_cid cid
+    @uri = uri
+    @last_From = "<#{uri}>;tag=" + generate_random_tag
+    @in_dialog = false
+    @has_To_tag = false
+    update_branch
+    @last_To = "<#{target_uri}>"
+    set_callee target_uri if target_uri
+    @routeset = []
+  end
+
+  def generate_random_tag
+    SecureRandom::hex
   end
 
 end
