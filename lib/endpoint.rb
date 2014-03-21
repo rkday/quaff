@@ -3,7 +3,7 @@ require 'socket'
 require 'thread'
 require 'timeout'
 require 'resolv'
-require 'digest/md5'
+require 'securerandom'
 #require 'milenage'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
@@ -20,7 +20,7 @@ module Quaff
     end
 
     def generate_call_id
-      digest = Digest::MD5.hexdigest(rand(60000).to_s)
+      SecureRandom::hex
     end
 
     def terminate
