@@ -260,9 +260,9 @@ module Quaff
     def to_s
       paramstr = @params.collect {|k, v| if (v == true) then ";#{k}" else ";#{k}=#{v}" end}.join("")
       if @is_nameaddr
-        puts "#{@displayname} <#{@uri}>#{paramstr}"
+        "#{@displayname} <#{@uri}>#{paramstr}"
       else
-        puts "#{@uri}#{paramstr}"
+        "#{@uri}#{paramstr}"
       end
     end
   end
