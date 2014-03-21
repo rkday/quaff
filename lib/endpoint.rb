@@ -13,44 +13,65 @@ module Quaff
     attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :instance_id
     attr_reader :msg_log
 
+    # Creates an SDP socket bound to an ephemeral port
     def setup_sdp
       @sdp_socket = UDPSocket.new
       @sdp_socket.bind('0.0.0.0', 0)
       @sdp_port = @sdp_socket.addr[1]
     end
 
+    # Creates a random Call-ID
     def generate_call_id
       SecureRandom::hex
     end
 
+    # Cleans up the endpoint - designed to be overriden by
+    # per-transport subclasses
     def terminate
     end
 
+    # Adds a socket connection to another UA - designed to be
+    # overriden by per-transport subclasses
     def add_sock sock
     end
 
-    def incoming_call *args
-      call_id ||= get_new_call_id
+    # Retrieves the next unhandled call for this endpoint and returns
+    # a +Call+ object representing it
+    def incoming_call
+      call_id = get_new_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri)
     end
 
+    # Creates a +Call+ object representing a new outbound call
     def outgoing_call to_uri
       call_id = generate_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri, @outbound_connection, to_uri)
     end
 
+    # Not yet ready for use
     def create_client(uri, username, password, outbound_proxy, outbound_port=5060)
     end
 
+    # Not yet ready for use
     def create_server(uri, local_port=5060, outbound_proxy=nil, outbound_port=5060)
-
     end
 
+    # Not yet ready for use
     def create_aka_client(uri, username, key, op, outbound_proxy, outbound_port=5060)
     end
 
+    # Constructs a new endpoint
+    # Params:
+    # +uri+:: The SIP URI of this endpoint
+    # +username+:: The authentication username of this endpoint
+    # +password+:: The authentication password of this endpoint
+    # +local_port+:: The port this endpoint should bind to.
+    # +outbound_proxy+:: The outbound proxy where all requests should
+    # be directed. Optional, but it only makes sense to omit it when
+    # Quaff is emulating a server rather than a client.
+    # +outbound_port+:: The port of the outbound proxy
     def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
       @msg_log = Array.new
       @uri = uri
@@ -82,6 +103,8 @@ module Quaff
       Timeout::timeout(time_limit) { @messages[cid].deq }
     end
 
+    # Flags that a particular call has ended, and any more messages
+    # using it shold be ignored.
     def mark_call_dead(cid)
         @messages.delete cid
         now = Time.now
@@ -95,11 +118,20 @@ module Quaff
         source.send_msg(@cxn, data)
     end
 
+    # Not yet ready for use
     def set_aka_credentials key, op
       @kernel = Milenage.Kernel key
       @kernel.op = op
     end
 
+    # Utility method - handles a REGISTER/200 or
+    # REGISTER/401/REGISTER/200 flow to authenticate the subscriber.
+    # Currently only supports SIP Digest authentication. Re-REGISTERs
+    # are not handled; if you need long-running endpoints you should
+    # create a thread to re-REGISTER them yourself.
+    #
+    # Returns the +Message+ representing the 200 OK, or throws an
+    # exception on failure to authenticate successfully.
     def register expires="3600", aka=false
       @reg_call ||= outgoing_call(@uri)
       auth_hdr = Quaff::Auth.gen_empty_auth_header @username
