@@ -32,7 +32,7 @@ module Quaff
     def incoming_call *args
       call_id ||= get_new_call_id
       puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
-      Call.new(self, call_id, @instance_id, *args)
+      Call.new(self, call_id, @instance_id, @uri)
     end
 
     def outgoing_call to_uri
