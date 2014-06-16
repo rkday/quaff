@@ -4,7 +4,7 @@ require 'abnf'
 require_relative './message.rb'
 
 module Quaff
-  class SipParser
+  class SipParser # :nodoc:
     attr_reader :state
     def parse_start
       @buf = ""
@@ -99,7 +99,7 @@ module Quaff
 
   end
 
-  class ABNFSipParser
+  class ABNFSipParser # :nodoc:
     include ABNF
 
     # Rules
@@ -227,7 +227,7 @@ module Quaff
     end
   end
 
-  class ToSpec < ABNFSipParser
+  class ToSpec < ABNFSipParser # :nodoc:
     attr_accessor :params, :uri, :displayname, :is_nameaddr
     def initialize
       super

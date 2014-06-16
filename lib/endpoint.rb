@@ -11,18 +11,13 @@ require_relative './sources.rb'
 module Quaff
   class BaseEndpoint
     attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :instance_id
-    attr_reader :msg_log
+    attr_reader :msg_log, :local_port
 
     # Creates an SDP socket bound to an ephemeral port
     def setup_sdp
       @sdp_socket = UDPSocket.new
       @sdp_socket.bind('0.0.0.0', 0)
       @sdp_port = @sdp_socket.addr[1]
-    end
-
-    # Creates a random Call-ID
-    def generate_call_id
-      SecureRandom::hex
     end
 
     # Cleans up the endpoint - designed to be overriden by
@@ -39,27 +34,27 @@ module Quaff
     # a +Call+ object representing it
     def incoming_call
       call_id = get_new_call_id
-      puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
+      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri)
     end
 
     # Creates a +Call+ object representing a new outbound call
     def outgoing_call to_uri
       call_id = generate_call_id
-      puts "Call-Id for endpoint on #{@lport} is #{call_id}" if @msg_trace
+      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri, @outbound_connection, to_uri)
     end
 
     # Not yet ready for use
-    def create_client(uri, username, password, outbound_proxy, outbound_port=5060)
+    def create_client(uri, username, password, outbound_proxy, outbound_port=5060) # :nodoc:
     end
 
     # Not yet ready for use
-    def create_server(uri, local_port=5060, outbound_proxy=nil, outbound_port=5060)
+    def create_server(uri, local_port=5060, outbound_proxy=nil, outbound_port=5060) # :nodoc:
     end
 
     # Not yet ready for use
-    def create_aka_client(uri, username, key, op, outbound_proxy, outbound_port=5060)
+    def create_aka_client(uri, username, key, op, outbound_proxy, outbound_port=5060) # :nodoc:
     end
 
     # Constructs a new endpoint
@@ -67,7 +62,8 @@ module Quaff
     # +uri+:: The SIP URI of this endpoint
     # +username+:: The authentication username of this endpoint
     # +password+:: The authentication password of this endpoint
-    # +local_port+:: The port this endpoint should bind to.
+    # +local_port+:: The port this endpoint should bind to. Use
+    # ':anyport' to bind to an ephemeral port.
     # +outbound_proxy+:: The outbound proxy where all requests should
     # be directed. Optional, but it only makes sense to omit it when
     # Quaff is emulating a server rather than a client.
@@ -78,7 +74,7 @@ module Quaff
       @resolver = Resolv::DNS.new
       @username = username
       @password = password
-      @lport = local_port
+      @local_port = local_port
       initialize_connection
       if outbound_proxy
         @outbound_connection = new_connection(outbound_proxy, outbound_port)
@@ -87,39 +83,14 @@ module Quaff
       start
     end
 
-    def local_port
-        @lport
-    end
-
-    def add_call_id cid
-        @messages[cid] ||= Queue.new
-    end
-
-    def get_new_call_id time_limit=30
-        Timeout::timeout(time_limit) { @call_ids.deq }
-    end
-
-    def get_new_message(cid, time_limit=30)
-      Timeout::timeout(time_limit) { @messages[cid].deq }
-    end
-
-    # Flags that a particular call has ended, and any more messages
-    # using it shold be ignored.
-    def mark_call_dead(cid)
-        @messages.delete cid
-        now = Time.now
-        @dead_calls[cid] = now + 30
-        @dead_calls = @dead_calls.keep_if {|k, v| v > now}
-    end
-
-    def send_msg(data, source)
-      @msg_log.push "Endpoint on #{@lport} sending:\n\n#{data.strip}\n\nto #{source.inspect}"
-      puts "Endpoint on #{@lport} sending #{data} to #{source.inspect}" if @msg_trace
+    def send_msg(data, source) # :nodoc:
+      @msg_log.push "Endpoint on #{@local_port} sending:\n\n#{data.strip}\n\nto #{source.inspect}"
+      puts "Endpoint on #{@local_port} sending #{data} to #{source.inspect}" if @msg_trace
         source.send_msg(@cxn, data)
     end
 
     # Not yet ready for use
-    def set_aka_credentials key, op
+    def set_aka_credentials key, op # :nodoc:
       @kernel = Milenage.Kernel key
       @kernel.op = op
     end
@@ -157,7 +128,42 @@ module Quaff
       register 0
     end
 
+    # Only designed for use by the Call class. Retrieves a new message
+    # on a particular call. If no new message has been received,
+    # blocks for up to time_limit seconds waiting for one. If nothing
+    # arrives, raises a TimeoutError.
+    def get_new_message(cid, time_limit=30) # :nodoc:
+      Timeout::timeout(time_limit) { @messages[cid].deq }
+    end
+
+
     private
+
+    # Flags that a particular call has ended, and any more messages
+    # using it shold be ignored.
+    def mark_call_dead(cid)
+        @messages.delete cid
+        now = Time.now
+        @dead_calls[cid] = now + 30
+        @dead_calls = @dead_calls.keep_if {|k, v| v > now}
+    end
+
+    # Creates a random Call-ID
+    def generate_call_id
+      call_id = SecureRandom::hex
+      add_call_id call_id
+      return call_id
+    end
+
+    def get_new_call_id time_limit=30
+        Timeout::timeout(time_limit) { @call_ids.deq }
+    end
+
+    # Sets up the internal structures needed to handle calls for a new Call-ID.
+    def add_call_id cid
+        @messages[cid] ||= Queue.new
+    end
+
     def initialize_queues
         @messages = {}
         @call_ids = Queue.new
@@ -174,8 +180,8 @@ module Quaff
     end
 
     def queue_msg(msg, source)
-      @msg_log.push "Endpoint on #{@lport} received:\n\n#{msg.to_s.strip}\n\nfrom #{source.inspect}"
-      puts "Endpoint on #{@lport} received #{msg} from
+      @msg_log.push "Endpoint on #{@local_port} received:\n\n#{msg.to_s.strip}\n\nfrom #{source.inspect}"
+      puts "Endpoint on #{@local_port} received #{msg} from
                           ##{source.inspect}" if @msg_trace
       msg.source = source
       cid = @parser.message_identifier msg
@@ -191,17 +197,6 @@ module Quaff
 
   class TCPSIPEndpoint < BaseEndpoint
     attr_accessor :sockets
-
-    def initialize_connection
-      if @lport != :anyport
-        @cxn = TCPServer.new(@lport)
-      else
-        @cxn = TCPServer.new(0)
-        @lport = @cxn.addr[1]
-      end
-      @parser = SipParser.new
-      @sockets = []
-    end
 
     def transport
       "TCP"
@@ -226,7 +221,21 @@ module Quaff
 
 
     alias_method :new_connection, :new_source
+
     private
+
+    def initialize_connection
+      if @local_port != :anyport
+        @cxn = TCPServer.new(@local_port)
+      else
+        @cxn = TCPServer.new(0)
+        @local_port = @cxn.addr[1]
+      end
+      @parser = SipParser.new
+      @sockets = []
+    end
+
+
     def recv_msg
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]
@@ -271,13 +280,14 @@ module Quaff
     alias_method :new_connection, :new_source
 
     private
+
     def initialize_connection
       @cxn = UDPSocket.new
-      if @lport != :anyport
-        @cxn.bind('0.0.0.0', @lport)
+      if @local_port != :anyport
+        @cxn.bind('0.0.0.0', @local_port)
       else
         @cxn.bind('0.0.0.0', 0)
-        @lport = @cxn.addr[1]
+        @local_port = @cxn.addr[1]
       end
       @sockets = []
       @parser = SipParser.new

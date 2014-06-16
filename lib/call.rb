@@ -29,7 +29,7 @@ class Call
   def initialize(cxn,
                  cid,
                  instance_id=nil,
-                 uri="sip:5557777888@#{Utils::local_ip}",
+                 uri,
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
@@ -37,14 +37,11 @@ class Call
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @instance_id = instance_id
+    @cid = cid
     set_default_headers cid, uri, target_uri
   end
 
-  def change_cid cid
-    @cid = cid
-    @cxn.add_call_id @cid
-  end
-
+  # Changes the branch parameter if the Via header, creating a new transaction
   def update_branch via_hdr=nil
     via_hdr ||= get_new_via_hdr
     @last_Via = via_hdr
@@ -56,18 +53,38 @@ class Call
     "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
-  def create_dialog msg
-    set_callee msg.first_header("Contact")
-  end
+  def create_dialog msg, is_request=true
+    if @in_dialog
+      return
+    end
 
-  def set_callee uri
+    @in_dialog = true
+
+    uri = msg.first_header("Contact")
+
     if /<(.*?)>/ =~ uri
       uri = $1
     end
 
-    @sip_destination = "#{uri}"
+    @sip_destination = uri
+
+    unless msg.all_headers("Record-Route").nil?
+      if is_request
+        @routeset = msg.all_headers("Record-Route")
+      else
+        @routeset = msg.all_headers("Record-Route").reverse
+      end
+    end
+
   end
 
+  # Sets the Source where messages in this call should be sent to by
+  # default.
+  #
+  # Options:
+  #    :recv_from_this - if true, also listens for any incoming
+  #    messages over this source's connection. (This is only
+  #    meaningful for connection-oriented transports.)
   def setdest source, options={}
     @src = source
     if options[:recv_from_this] and source.sock
@@ -97,12 +114,7 @@ class Call
     end
 
     if dialog_creating
-      @in_dialog = true
-
-      set_callee msg.first_header("Contact")
-      unless msg.all_headers("Record-Route").nil?
-        @routeset = msg.all_headers("Record-Route")
-      end
+      create_dialog msg, true
     end
     msg
   end
@@ -119,11 +131,7 @@ class Call
     end
 
     if dialog_creating
-      @in_dialog = true
-      set_callee msg.first_header("Contact")
-      unless msg.all_headers("Record-Route").nil?
-        @routeset = msg.all_headers("Record-Route").reverse
-      end
+      create_dialog msg, false
     end
 
     if @in_dialog
@@ -238,14 +246,13 @@ class Call
 
   def set_default_headers cid, uri, target_uri
     @cseq_number = 1
-    change_cid cid
     @uri = uri
     @last_From = "<#{uri}>;tag=" + generate_random_tag
     @in_dialog = false
     @has_To_tag = false
     update_branch
     @last_To = "<#{target_uri}>"
-    set_callee target_uri if target_uri
+    @sip_destination = target_uri
     @routeset = []
   end
 
