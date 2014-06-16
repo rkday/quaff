@@ -53,7 +53,7 @@ class Call
     "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
-  def create_dialog msg, is_request=true
+  def create_dialog msg
     if @in_dialog
       return
     end
@@ -69,7 +69,7 @@ class Call
     @sip_destination = uri
 
     unless msg.all_headers("Record-Route").nil?
-      if is_request
+      if msg.type == :request
         @routeset = msg.all_headers("Record-Route")
       else
         @routeset = msg.all_headers("Record-Route").reverse
@@ -114,7 +114,63 @@ class Call
     end
 
     if dialog_creating
-      create_dialog msg, true
+      create_dialog msg
+    end
+    msg
+  end
+
+  def recv_any_of(possible_messages)
+    begin
+      msg = recv_something
+    rescue
+      raise "#{ @uri } timed out waiting for one of these: #{possible_messages}"
+    end
+
+    found_match = false
+    dialog_creating = nil
+    
+    possible_messages.each do
+      | what, this_dialog_creating |
+      type == if (what.class == String) then :request else :response end
+      if this_dialog_creating.nil?
+        this_dialog_creating = (type == :request)
+      end
+
+      found_match =
+        if type == :request 
+          msg.type == :request and what == msg.method
+        else
+          msg.type == :response and what == msg.status_code
+        end
+
+      if found_match
+        dialog_creating = this_dialog_creating
+        break
+      end
+    end
+
+    unless found_match
+      raise((msg.to_s || "Message is nil!"))
+    end
+
+    if msg.type == :request
+      unless @has_To_tag
+        @has_To_tag = true
+        tospec = ToSpec.new
+        tospec.parse(msg.header("To"))
+        tospec.params['tag'] = generate_random_tag
+        @last_To = tospec.to_s
+        @last_From = msg.header("From")
+      end
+    else
+      if @in_dialog
+        @has_To_tag = true
+        @last_To = msg.header("To")
+      end    
+    end
+
+    if dialog_creating
+      create_dialog msg
     end
     msg
   end
@@ -131,7 +187,7 @@ class Call
     end
 
     if dialog_creating
-      create_dialog msg, false
+      create_dialog msg
     end
 
     if @in_dialog
