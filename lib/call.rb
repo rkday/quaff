@@ -119,6 +119,20 @@ class Call
     msg
   end
 
+  # Waits until the next message comes in, and handles it if it is one
+  # of possible_messages.
+  #
+  # possible_messages is a list of things that can be received.
+  # Elements can be:
+  # * a string representing the SIP method, e.g. "INVITE"
+  # * a number representing the SIP status code, e.g. 200
+  # * a two-item list, containing one of the above and a boolean
+  # value, which indicates whether this message is dialog-creating. by
+  # default, requests are assumed to be dialog-creating and responses
+  # are not.
+  #
+  # For example, ["INVITE", 301, ["ACK", false], [200, true]] is a
+  # valid value for possible_messages.
   def recv_any_of(possible_messages)
     begin
       msg = recv_something
