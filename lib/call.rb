@@ -1,5 +1,6 @@
 # -*- coding: us-ascii -*-
 require 'securerandom'
+require 'timeout'
 require_relative './utils.rb'
 require_relative './sources.rb'
 require_relative './auth.rb'
@@ -29,7 +30,7 @@ class Call
   def initialize(cxn,
                  cid,
                  instance_id=nil,
-                 uri,
+                 uri=nil,
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
@@ -53,7 +54,15 @@ class Call
     "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
-  def create_dialog msg, is_request=true
+  def set_callee uri
+    if /<(.*?)>/ =~ uri
+      uri = $1
+    end
+
+    @sip_destination = "#{uri}"
+  end
+  
+  def create_dialog msg
     if @in_dialog
       return
     end
@@ -69,7 +78,7 @@ class Call
     @sip_destination = uri
 
     unless msg.all_headers("Record-Route").nil?
-      if is_request
+      if msg.type == :request
         @routeset = msg.all_headers("Record-Route")
       else
         @routeset = msg.all_headers("Record-Route").reverse
@@ -95,7 +104,7 @@ class Call
   def recv_request(method, dialog_creating=true)
     begin
       msg = recv_something
-    rescue
+    rescue Timeout::Error
       raise "#{ @uri } timed out waiting for #{ method }"
     end
 
@@ -114,7 +123,77 @@ class Call
     end
 
     if dialog_creating
-      create_dialog msg, true
+      create_dialog msg
+    end
+    msg
+  end
+
+  # Waits until the next message comes in, and handles it if it is one
+  # of possible_messages.
+  #
+  # possible_messages is a list of things that can be received.
+  # Elements can be:
+  # * a string representing the SIP method, e.g. "INVITE"
+  # * a number representing the SIP status code, e.g. 200
+  # * a two-item list, containing one of the above and a boolean
+  # value, which indicates whether this message is dialog-creating. by
+  # default, requests are assumed to be dialog-creating and responses
+  # are not.
+  #
+  # For example, ["INVITE", 301, ["ACK", false], [200, true]] is a
+  # valid value for possible_messages.
+  def recv_any_of(possible_messages)
+    begin
+      msg = recv_something
+    rescue Timeout::Error
+      raise "#{ @uri } timed out waiting for one of these: #{possible_messages}"
+    end
+
+    found_match = false
+    dialog_creating = nil
+    
+    possible_messages.each do
+      | what, this_dialog_creating |
+      type = if (what.class == String) then :request else :response end
+      if this_dialog_creating.nil?
+        this_dialog_creating = (type == :request)
+      end
+
+      found_match =
+        if type == :request 
+          msg.type == :request and what == msg.method
+        else
+          msg.type == :response and what == msg.status_code
+        end
+
+      if found_match
+        dialog_creating = this_dialog_creating
+        break
+      end
+    end
+
+    unless found_match
+      raise((msg.to_s || "Message is nil!"))
+    end
+
+    if msg.type == :request
+      unless @has_To_tag
+        @has_To_tag = true
+        tospec = ToSpec.new
+        tospec.parse(msg.header("To"))
+        tospec.params['tag'] = generate_random_tag
+        @last_To = tospec.to_s
+        @last_From = msg.header("From")
+      end
+    else
+      if @in_dialog
+        @has_To_tag = true
+        @last_To = msg.header("To")
+      end    
+    end
+
+    if dialog_creating
+      create_dialog msg
     end
     msg
   end
@@ -122,7 +201,7 @@ class Call
   def recv_response(code, dialog_creating=false)
     begin
       msg = recv_something
-    rescue
+    rescue Timeout::Error
       raise "#{ @uri } timed out waiting for #{ code }"
     end
     unless msg.type == :response \
@@ -131,7 +210,7 @@ class Call
     end
 
     if dialog_creating
-      create_dialog msg, false
+      create_dialog msg
     end
 
     if @in_dialog
