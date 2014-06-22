@@ -3,7 +3,7 @@ require 'facter'
 
 module Quaff
 
-module Utils
+module Utils #:nodoc:
 def Utils.local_ip
   Facter.value("ipaddress")
 end

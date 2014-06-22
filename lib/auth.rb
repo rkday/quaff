@@ -1,7 +1,7 @@
 require 'base64'
 
 module Quaff
-  module Auth
+  module Auth #:nodoc:
     def Auth.gen_nonce auth_pairs, username, passwd, method, sip_uri
       a1 = username + ":" + auth_pairs["realm"] + ":" + passwd
       a2 = method + ":" + sip_uri

@@ -1,19 +1,13 @@
 require 'socket'
 module Quaff
+  # A Source is an abstraction representing an IP
+  # address/port/transport where a SIP message originates from or can
+  # be sent to. It allows users to abstract over TCP and UDP sockets.
   class Source
-    def remote_ip
-      @ip
-    end
+    attr_reader :ip, :port, :transport, :sock
 
-    def remote_port
-      @port
-    end
-
+    # Designed to be overriden by subclasses
     def close cxn
-    end
-
-    def sock
-      nil
     end
 
     def to_s
@@ -41,7 +35,6 @@ module Quaff
 
 
   class TCPSource < Source
-    attr_reader :sock
 
     def initialize ip, port
       @transport = "TCP"
