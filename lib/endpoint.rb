@@ -33,7 +33,12 @@ module Quaff
     # Retrieves the next unhandled call for this endpoint and returns
     # a +Call+ object representing it
     def incoming_call
-      call_id = get_new_call_id
+      begin
+        call_id = get_new_call_id
+      rescue Timeout::Error
+        raise "#{ @uri } timed out waiting for new incoming call"
+      end
+      
       puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri)
     end
@@ -137,7 +142,6 @@ module Quaff
     end
 
 
-    private
 
     # Flags that a particular call has ended, and any more messages
     # using it shold be ignored.
@@ -147,6 +151,7 @@ module Quaff
         @dead_calls[cid] = now + 30
         @dead_calls = @dead_calls.keep_if {|k, v| v > now}
     end
+    private
 
     # Creates a random Call-ID
     def generate_call_id

@@ -1,5 +1,6 @@
 # -*- coding: us-ascii -*-
 require 'securerandom'
+require 'timeout'
 require_relative './utils.rb'
 require_relative './sources.rb'
 require_relative './auth.rb'
@@ -29,7 +30,7 @@ class Call
   def initialize(cxn,
                  cid,
                  instance_id=nil,
-                 uri,
+                 uri=nil,
                  destination=nil,
                  target_uri=nil)
     @cxn = cxn
@@ -53,6 +54,14 @@ class Call
     "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
   end
 
+  def set_callee uri
+    if /<(.*?)>/ =~ uri
+      uri = $1
+    end
+
+    @sip_destination = "#{uri}"
+  end
+  
   def create_dialog msg
     if @in_dialog
       return
@@ -95,7 +104,7 @@ class Call
   def recv_request(method, dialog_creating=true)
     begin
       msg = recv_something
-    rescue
+    rescue Timeout::Error
       raise "#{ @uri } timed out waiting for #{ method }"
     end
 
@@ -136,7 +145,7 @@ class Call
   def recv_any_of(possible_messages)
     begin
       msg = recv_something
-    rescue
+    rescue Timeout::Error
       raise "#{ @uri } timed out waiting for one of these: #{possible_messages}"
     end
 
@@ -145,7 +154,7 @@ class Call
     
     possible_messages.each do
       | what, this_dialog_creating |
-      type == if (what.class == String) then :request else :response end
+      type = if (what.class == String) then :request else :response end
       if this_dialog_creating.nil?
         this_dialog_creating = (type == :request)
       end
@@ -192,7 +201,7 @@ class Call
   def recv_response(code, dialog_creating=false)
     begin
       msg = recv_something
-    rescue
+    rescue Timeout::Error
       raise "#{ @uri } timed out waiting for #{ code }"
     end
     unless msg.type == :response \
