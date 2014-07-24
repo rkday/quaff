@@ -1,3 +1,11 @@
+Version 0.6.1
+
+* Fix bug in status code handling for recv_any_of
+
+Version 0.6.0
+
+* Add recv_any_of method to allow handling messages that may come in an arbitrary order
+
 Version 0.5.1
 
 * Fix bug when deriving Req-URI from a Contact header with multiple pairs of angle brackets

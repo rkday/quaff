@@ -163,7 +163,7 @@ class Call
         if type == :request 
           msg.type == :request and what == msg.method
         else
-          msg.type == :response and what == msg.status_code
+          msg.type == :response and what.to_s == msg.status_code
         end
 
       if found_match
