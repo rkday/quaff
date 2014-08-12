@@ -20,9 +20,14 @@ module Quaff
       @sdp_port = @sdp_socket.addr[1]
     end
 
+    def terminate
+      @terminated = true
+      terminate_specific
+    end
+
     # Cleans up the endpoint - designed to be overriden by
     # per-transport subclasses
-    def terminate
+    def terminate_specific
     end
 
     # Adds a socket connection to another UA - designed to be
@@ -178,7 +183,7 @@ module Quaff
 
     def start
         Thread.new do
-            loop do
+            until @terminated do
                 recv_msg
             end
         end
@@ -215,7 +220,7 @@ module Quaff
       @sockets.push sock
     end
 
-    def terminate
+    def terminate_specific
       oldsockets = @sockets.dup
       @sockets = []
       oldsockets.each do |s| s.close unless s.closed? end
@@ -242,8 +247,10 @@ module Quaff
 
 
     def recv_msg
+        warn "recv_msg called for an endpoint with no sockets - will tight-loop" if @sockets.empty?
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]
+
         for sock in readable do
             recv_msg_from_sock sock
         end
