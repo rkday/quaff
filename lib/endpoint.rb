@@ -7,6 +7,7 @@ require 'securerandom'
 #require 'milenage'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
+require 'digest/md5'
 
 module Quaff
   class BaseEndpoint
@@ -43,7 +44,7 @@ module Quaff
       rescue Timeout::Error
         raise "#{ @uri } timed out waiting for new incoming call"
       end
-      
+
       puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
       Call.new(self, call_id, @instance_id, @uri)
     end
@@ -89,6 +90,7 @@ module Quaff
       if outbound_proxy
         @outbound_connection = new_connection(outbound_proxy, outbound_port)
       end
+      @hashes = []
       initialize_queues
       start
     end
@@ -189,10 +191,21 @@ module Quaff
         end
     end
 
+    def is_retransmission? msg
+      @hashes.include? Digest::MD5.hexdigest(msg.to_s)
+    end
+
     def queue_msg(msg, source)
+      if is_retransmission? msg
+        @msg_log.push "Endpoint on #{@local_port} received retransmission"
+        puts "Endpoint on #{@local_port} received retransmission" if @msg_trace
+        return
+      end
+
+      @hashes.push Digest::MD5.hexdigest(msg.to_s)
+
       @msg_log.push "Endpoint on #{@local_port} received:\n\n#{msg.to_s.strip}\n\nfrom #{source.inspect}"
-      puts "Endpoint on #{@local_port} received #{msg} from
-                          ##{source.inspect}" if @msg_trace
+      puts "Endpoint on #{@local_port} received #{msg} from #{source.inspect}" if @msg_trace
       msg.source = source
       cid = @parser.message_identifier msg
       if cid and not @dead_calls.has_key? cid then
@@ -265,13 +278,13 @@ module Quaff
     end
 
     def recv_msg_from_sock(sock)
-        @parser.parse_start
-        msg = nil
+      @parser.parse_start
+      msg = nil
       while msg.nil? and not sock.closed? do
         line = sock.gets
         msg = @parser.parse_partial line
       end
-        queue_msg msg, TCPSourceFromSocket.new(sock)
+      queue_msg msg, TCPSourceFromSocket.new(sock)
     end
   end
 
