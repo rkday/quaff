@@ -1,3 +1,8 @@
+Version 0.6.2
+
+* Detect and discard retransmissions
+* Fix tight loop created by terminating a TCP Endpoint
+
 Version 0.6.1
 
 * Fix bug in status code handling for recv_any_of
