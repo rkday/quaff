@@ -260,7 +260,7 @@ module Quaff
 
 
     def recv_msg
-        warn "recv_msg called for an endpoint with no sockets - will tight-loop" if @sockets.empty?
+        warn "recv_msg called for an endpoint with no sockets - will tight-loop" if (@sockets.empty? and @cxn.nil?)
         select_response = IO.select(@sockets, [], [], 0) || [[]]
         readable = select_response[0]
 
