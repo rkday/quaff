@@ -1,3 +1,7 @@
+Version 0.6.4
+
+* Fix Contact header transport bug
+
 Version 0.6.3
 
 * Allow the Contact header to be extended with extra header parameters

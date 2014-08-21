@@ -96,7 +96,7 @@ module Quaff
         @outbound_connection = new_connection(outbound_proxy, outbound_port)
       end
       @hashes = []
-      @contact_header = "<sip:quaff@#{Utils::local_ip}:#{@local_port};transport=#{@transport};ob>"
+      @contact_header = "<sip:quaff@#{Utils::local_ip}:#{@local_port};transport=#{transport};ob>"
       initialize_queues
       start
     end
