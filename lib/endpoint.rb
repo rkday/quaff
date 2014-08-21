@@ -11,8 +11,8 @@ require 'digest/md5'
 
 module Quaff
   class BaseEndpoint
-    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :instance_id
-    attr_reader :msg_log, :local_port
+    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :contact_header
+    attr_reader :msg_log, :local_port, :instance_id
 
     # Creates an SDP socket bound to an ephemeral port
     def setup_sdp
@@ -36,6 +36,11 @@ module Quaff
     def add_sock sock
     end
 
+    def instance_id= id
+      @instance_id = id
+      @contact_header  += ";+sip.instance=\"<urn:uuid:"+@instance_id+">\""
+    end
+    
     # Retrieves the next unhandled call for this endpoint and returns
     # a +Call+ object representing it
     def incoming_call
@@ -91,6 +96,7 @@ module Quaff
         @outbound_connection = new_connection(outbound_proxy, outbound_port)
       end
       @hashes = []
+      @contact_header = "<sip:quaff@#{Utils::local_ip}:#{@local_port};transport=#{@transport};ob>"
       initialize_queues
       start
     end
@@ -169,6 +175,10 @@ module Quaff
 
     def get_new_call_id time_limit=30
         Timeout::timeout(time_limit) { @call_ids.deq }
+    end
+
+    def no_new_calls?
+      return @call_ids.empty?
     end
 
     # Sets up the internal structures needed to handle calls for a new Call-ID.

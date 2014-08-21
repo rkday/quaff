@@ -1,3 +1,8 @@
+Version 0.6.3
+
+* Allow the Contact header to be extended with extra header parameters
+* Add the no_new_calls? method to verify that nothing is happening on an endpoint
+
 Version 0.6.2
 
 * Detect and discard retransmissions

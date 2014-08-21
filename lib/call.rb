@@ -283,12 +283,8 @@ class Call
       "Max-Forwards" => "70",
       "Content-Length" => "0",
       "User-Agent" => "Quaff SIP Scripting Engine",
-      "Contact" => "<sip:quaff@#{Utils::local_ip}:#{@cxn.local_port};transport=#{@cxn.transport};ob>",
+      "Contact" => @cxn.contact_header
     }
-
-    if @instance_id
-      defaults["Contact"] += ";+sip.instance=\"<urn:uuid:"+@instance_id+">\""
-    end
 
     is_request = code.nil?
     if is_request
