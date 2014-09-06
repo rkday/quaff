@@ -1,11 +1,18 @@
 require 'socket'
-require 'facter'
+require 'system/getifaddrs'
 
 module Quaff
 
 module Utils #:nodoc:
 def Utils.local_ip
-  Facter.value("ipaddress")
+  addrs = System.get_ifaddrs
+  if addrs.empty?
+    "0.0.0.0"
+  elsif (addrs.size == 1)
+    addrs[0][:inet_addr]
+  else
+    addrs.select {|k, v| k != :lo}.shift[1][:inet_addr]
+  end
 end
 
 def Utils.pid
