@@ -34,35 +34,33 @@ Content-Length: 0
 ")
 
 describe Quaff::SipParser do
-    before :all do
-        @parser = Quaff::SipParser.new
-        @parser.parse_start
-        @parsed_request = @parser.parse_partial message
-        @parser.parse_start
-        @parsed_response = @parser.parse_partial response
-    end
+  before :all do
+    @parser = Quaff::SipParser.new
+    @parser.parse_start
+    @parsed_request = @parser.parse_partial message
+    @parser.parse_start
+    @parsed_response = @parser.parse_partial response
+  end
 
   it "produces something after parsing a request" do
-    @parser.state.should eq :done
-    @parsed_request.should_not be nil
-    end
+    expect(@parser.state).to eq(:done)
+    expect(@parsed_request).not_to eq(nil)
+  end
 
-    it "produces something from which headers can be retrieved after parsing a request" do
-        @parsed_request.header("CSeq").should eq "1 REGISTER"
-    end
+  it "produces something from which headers can be retrieved after parsing a request" do
+    expect(@parsed_request.header("CSeq")).to eq("1 REGISTER")
+  end
 
-    it "can parse headers with a hyphen" do
-        @parsed_request.header("Max-Forwards").should eq "70"
-    end
+  it "can parse headers with a hyphen" do
+    expect(@parsed_request.header("Max-Forwards")).to eq("70")
+  end
 
-    it "correctly handles headers with multiple values" do
-        @parsed_request.all_headers("Contact").should eq ["<sips:bob@client.biloxi.example.com>", "<sips:bob2@client.biloxi.example.com>"]
-    end
+  it "correctly handles headers with multiple values" do
+    expect(@parsed_request.all_headers("Contact")).to eq(["<sips:bob@client.biloxi.example.com>", "<sips:bob2@client.biloxi.example.com>"])
+  end
 
-    it "produces something from which headers can be retrieved after parsing a response" do
-        @parsed_response.header("CSeq").should eq "1 REGISTER"
-        @parsed_response.header("Content-Length").should eq "0"
-    end
-
-
+  it "produces something from which headers can be retrieved after parsing a response" do
+    expect(@parsed_response.header("CSeq")).to eq("1 REGISTER")
+    expect(@parsed_response.header("Content-Length")).to eq("0")
+  end
 end
