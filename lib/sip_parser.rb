@@ -258,7 +258,7 @@ module Quaff
     end
 
     def to_s
-      paramstr = @params.collect {|k, v| if (v == true) then ";#{k}" else ";#{k}=#{v}" end}.join("")
+      paramstr = Utils.paramhash_to_str(@params)
       if @is_nameaddr
         "#{@displayname} <#{@uri}>#{paramstr}"
       else

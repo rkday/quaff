@@ -19,5 +19,10 @@ end
 def Utils.new_branch
     "z9hG4bK#{Time.new.to_f}"
 end
+
+def Utils.paramhash_to_str params
+  params.collect {|k, v| if (v == true) then ";#{k}" else ";#{k}=#{v}" end}.join("")
+end
+
 end
 end

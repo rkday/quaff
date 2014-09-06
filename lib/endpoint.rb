@@ -36,9 +36,16 @@ module Quaff
     def add_sock sock
     end
 
+    def add_contact_param name, value
+      @contact_params[name] = value
+    end
+
+    def add_contact_uri_param name, value
+      @contact_uri_params[name] = value
+    end
+    
     def instance_id= id
-      @instance_id = id
-      @contact_header  += ";+sip.instance=\"<urn:uuid:"+@instance_id+">\""
+      add_contact_param "+sip.instance", "\"<urn:uuid:#{id}>\""
     end
     
     # Retrieves the next unhandled call for this endpoint and returns
@@ -96,9 +103,16 @@ module Quaff
         @outbound_connection = new_connection(outbound_proxy, outbound_port)
       end
       @hashes = []
-      @contact_header = "<sip:quaff@#{Utils::local_ip}:#{@local_port};transport=#{transport};ob>"
+      @contact_params = {}
+      @contact_uri_params = {"transport" => transport, "ob" => true}
       initialize_queues
       start
+    end
+
+    def contact_header
+      param_str = Utils.paramhash_to_str(@contact_params)
+      uri_param_str = Utils.paramhash_to_str(@contact_uri_params)
+      "<sip:quaff@#{Utils::local_ip}:#{@local_port}#{uri_param_str}>#{param_str}"
     end
 
     def send_msg(data, source) # :nodoc:
