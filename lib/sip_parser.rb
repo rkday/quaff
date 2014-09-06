@@ -137,7 +137,7 @@ module Quaff
     end
 
     def hostname
-      Repetition.new([:at_least, 1], Alternate.new(alphanum, Char.new(?.)))
+      Repetition.new([:at_least, 1], Alternate.new(alphanum, Char.new(?.), Char.new(?-)))
     end
 
     def port
@@ -223,7 +223,7 @@ module Quaff
     end
 
     def to_spec
-      Concat.new(Alternate.new(addr_spec, name_addr), Repetition.new(:any, Concat.new(Char.new(?;), from_param)))
+      Concat.new(Alternate.new(addr_spec, name_addr), Repetition.new(:any, Concat.new(Char.new(?;), to_param)))
     end
   end
 
@@ -242,7 +242,7 @@ module Quaff
     end
 
     def display_name
-      super.set_block {|p| @display_name = p; @is_nameaddr = true}
+      super.set_block {|p| @displayname = p.strip; @is_nameaddr = true}
     end
 
     def addr_spec

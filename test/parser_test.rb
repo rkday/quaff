@@ -64,3 +64,39 @@ describe Quaff::SipParser do
     expect(@parsed_response.header("Content-Length")).to eq("0")
   end
 end
+
+describe Quaff::ToSpec do
+  it "parses a header into component parts" do
+    header = '"Alice" <sip:alice@example.com;transport=TCP>;tag=abcd'
+    to = Quaff::ToSpec.new
+    expect(to.parse header).to eq(true)
+    expect(to.displayname).to eq('"Alice"')
+    expect(to.is_nameaddr).to eq(true)
+    expect(to.uri).to eq("sip:alice@example.com;transport=TCP")
+    expect(to.params['tag']).to eq("abcd")
+    expect(to.to_s).to eq(header)
+  end
+
+  it "parses a basic header into component parts" do
+    header = 'sip:alice@example.com'
+    to = Quaff::ToSpec.new
+    expect(to.parse header).to eq(true)
+    expect(to.displayname).to eq(nil)
+    expect(to.is_nameaddr).to eq(false)
+    expect(to.uri).to eq("sip:alice@example.com")
+    expect(to.params['tag']).to eq(nil)
+    expect(to.to_s).to eq(header)
+  end
+
+  it "parses a header with dashes into component parts" do
+    header = '"Alice" <sip:alice@example-no-2.com;transport=TCP>;tag=abcd'
+    to = Quaff::ToSpec.new
+    expect(to.parse header).to eq(true)
+    expect(to.displayname).to eq('"Alice"')
+    expect(to.is_nameaddr).to eq(true)
+    expect(to.uri).to eq("sip:alice@example-no-2.com;transport=TCP")
+    expect(to.params['tag']).to eq("abcd")
+    expect(to.to_s).to eq(header)
+  end
+
+end
