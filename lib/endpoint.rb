@@ -11,7 +11,7 @@ require 'digest/md5'
 
 module Quaff
   class BaseEndpoint
-    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :contact_header
+    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket
     attr_reader :msg_log, :local_port, :instance_id
 
     # Creates an SDP socket bound to an ephemeral port
@@ -105,6 +105,7 @@ module Quaff
       @hashes = []
       @contact_params = {}
       @contact_uri_params = {"transport" => transport, "ob" => true}
+      @terminated = false
       initialize_queues
       start
     end

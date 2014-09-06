@@ -22,7 +22,7 @@ module Quaff
     def to_s
       "#{@num.to_s} #{@method}"
     end
-end
+  end
 
 class Call
   attr_reader :cid
