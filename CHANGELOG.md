@@ -1,3 +1,9 @@
+Version 0.7.0
+
+* Fix various paarsing bugs, including allowing '-' in hostnames
+* Remove dependency on facter in favour of system-getifaddrs
+* Better API for Contact header construction
+
 Version 0.6.4
 
 * Fix Contact header transport bug
