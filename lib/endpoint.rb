@@ -43,6 +43,14 @@ module Quaff
     def add_contact_uri_param name, value
       @contact_uri_params[name] = value
     end
+
+    def remove_contact_param name
+      @contact_params.delete name
+    end
+
+    def remove_contact_uri_param name
+      @contact_uri_params.delete name
+    end
     
     def instance_id= id
       add_contact_param "+sip.instance", "\"<urn:uuid:#{id}>\""
