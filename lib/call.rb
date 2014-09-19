@@ -199,15 +199,43 @@ class Call
     recv_response code, true
   end
 
-  def send_response(code, phrase, body="", retrans=nil, headers={})
+  def send_response(code, phrase, options={})
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:same_tsx_as]
+      assoc_with_msg(options[:same_tsx_as])
+    end
+
     method = nil
     msg = build_message headers, body, :response, method, code, phrase
     send_something(msg, retrans)
   end
 
-  def send_request(method, body="", headers={})
+  def send_request(method, options={}))
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:same_tsx_as]
+      assoc_with_msg(options[:same_tsx_as])
+    end
+
+    if options[:new_tsx]
+      update_branch
+    end
+    
     msg = build_message headers, body, :request, method
-    send_something(msg, nil)
+    send_something(msg, retrans)
   end
 
   def end_call
