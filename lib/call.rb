@@ -39,7 +39,6 @@ class Call
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @instance_id = instance_id
-    @cid = cid
     @dialog = SipDialog.new cid, my_uri, target_uri
     update_branch
   end
@@ -212,7 +211,7 @@ class Call
   end
 
   def end_call
-    @cxn.mark_call_dead @cid
+    @cxn.mark_call_dead @dialog.call_id
   end
 
   def assoc_with_msg(msg)
@@ -227,7 +226,7 @@ class Call
 
   private
   def recv_something
-    msg = @cxn.get_new_message @cid
+    msg = @cxn.get_new_message @dialog.call_id
     @retrans = nil
     @src = msg.source
     @last_Via = msg.headers["Via"]
@@ -260,11 +259,11 @@ class Call
     }
 
     if is_request
-      defaults['From'] = @dialog.local_fromto,
+      defaults['From'] = @dialog.local_fromto
       defaults['To'] = @dialog.peer_fromto
       defaults['Route'] = @dialog.routeset
     else
-      defaults['To'] = @dialog.local_fromto,
+      defaults['To'] = @dialog.local_fromto
       defaults['From'] = @dialog.peer_fromto
       defaults['Record-Route'] = @dialog.routeset
     end
@@ -282,7 +281,7 @@ class Call
         timer = @t1
         sleep timer
         while @retrans do
-          #puts "Retransmitting on call #{ @cid }"
+          #puts "Retransmitting on call #{ @dialog.call_id }"
           @cxn.send(msg, @src)
           timer *=2
           if timer < @t2 then

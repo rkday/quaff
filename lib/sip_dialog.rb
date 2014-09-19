@@ -7,6 +7,7 @@ class SipDialog
 
   def initialize call_id, local_uri, peer_uri
     @cseq = 1
+    @call_id = call_id
     @established = false
     @routeset = []
     @local_tag = SecureRandom::hex
