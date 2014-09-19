@@ -41,6 +41,7 @@ module Quaff
       @contact_params = {}
       @contact_uri_params = {"transport" => transport, "ob" => true}
       @terminated = false
+      @last_sent_msg = nil
       initialize_queues
       start
     end
@@ -128,7 +129,8 @@ module Quaff
     def send_msg(data, source) # :nodoc:
       @msg_log.push "Endpoint on #{@local_port} sending:\n\n#{data.strip}\n\nto #{source.inspect}"
       puts "Endpoint on #{@local_port} sending #{data} to #{source.inspect}" if @msg_trace
-        source.send_msg(@cxn, data)
+      source.send_msg(@cxn, data)
+      @last_sent_msg = data
     end
 
     # Not yet ready for use
@@ -233,6 +235,7 @@ module Quaff
       if is_retransmission? msg
         @msg_log.push "Endpoint on #{@local_port} received retransmission"
         puts "Endpoint on #{@local_port} received retransmission" if @msg_trace
+        source.send_msg(@cxn, @last_sent_msg) if @last_sent_msg
         return
       end
 
