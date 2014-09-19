@@ -11,7 +11,7 @@ require 'digest/md5'
 
 module Quaff
   class BaseEndpoint
-    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket
+    attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :local_host
     attr_reader :msg_log, :local_port, :instance_id
 
     # Creates an SDP socket bound to an ephemeral port
@@ -105,6 +105,7 @@ module Quaff
       @resolver = Resolv::DNS.new
       @username = username
       @password = password
+      @local_host = Utils::local_ip
       @local_port = local_port
       initialize_connection
       if outbound_proxy
@@ -121,7 +122,7 @@ module Quaff
     def contact_header
       param_str = Utils.paramhash_to_str(@contact_params)
       uri_param_str = Utils.paramhash_to_str(@contact_uri_params)
-      "<sip:quaff@#{Utils::local_ip}:#{@local_port}#{uri_param_str}>#{param_str}"
+      "<sip:quaff@#{@local_host}:#{@local_port}#{uri_param_str}>#{param_str}"
     end
 
     def send_msg(data, source) # :nodoc:
