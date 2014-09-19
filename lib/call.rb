@@ -177,15 +177,23 @@ class Call
     msg
   end
 
-  def recv_response(code, dialog_creating=false)
+  def recv_response(code, options={})
+    dialog_creating = options[:dialog_creating] || false
+    ignore_responses = options[:ignore_responses] || [] 
     begin
       msg = recv_something
     rescue Timeout::Error
       raise "#{ @uri } timed out waiting for #{ code }"
     end
-    unless msg.type == :response \
-      and Regexp.new(code) =~ msg.status_code
-      raise "Expected #{code}, got #{msg.status_code || msg}"
+
+    if msg.type != :response
+      raise "Expected #{code}, got #{msg}"
+    elsif ignore_responses.include? msg.status_code
+      return recv_response(code, options)
+    else
+      unless Regexp.new(code) =~ msg.status_code
+        raise "Expected #{code}, got #{msg.status_code}"
+      end
     end
 
     if dialog_creating
@@ -195,8 +203,9 @@ class Call
     msg
   end
 
-  def recv_response_and_create_dialog(code)
-    recv_response code, true
+  def recv_response_and_create_dialog(code, options={})
+    options[:dialog_creating] = true
+    recv_response code, options
   end
 
   def send_response(code, phrase, options={})
