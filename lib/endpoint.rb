@@ -14,6 +14,57 @@ module Quaff
     attr_accessor :msg_trace, :uri, :sdp_port, :sdp_socket, :local_host
     attr_reader :msg_log, :local_port, :instance_id
 
+    # Constructs a new endpoint
+    # Params:
+    # +uri+:: The SIP URI of this endpoint
+    # +username+:: The authentication username of this endpoint
+    # +password+:: The authentication password of this endpoint
+    # +local_port+:: The port this endpoint should bind to. Use
+    # ':anyport' to bind to an ephemeral port.
+    # +outbound_proxy+:: The outbound proxy where all requests should
+    # be directed. Optional, but it only makes sense to omit it when
+    # Quaff is emulating a server rather than a client.
+    # +outbound_port+:: The port of the outbound proxy
+    def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
+      @msg_log = Array.new
+      @uri = uri
+      @resolver = Resolv::DNS.new
+      @username = username
+      @password = password
+      @local_host = Utils::local_ip
+      @local_port = local_port
+      initialize_connection
+      if outbound_proxy
+        @outbound_connection = new_connection(outbound_proxy, outbound_port)
+      end
+      @hashes = []
+      @contact_params = {}
+      @contact_uri_params = {"transport" => transport, "ob" => true}
+      @terminated = false
+      initialize_queues
+      start
+    end
+
+    # Retrieves the next unhandled call for this endpoint and returns
+    # a +Call+ object representing it
+    def incoming_call
+      begin
+        call_id = get_new_call_id
+      rescue Timeout::Error
+        raise "#{ @uri } timed out waiting for new incoming call"
+      end
+
+      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
+      Call.new(self, call_id, @instance_id, @uri)
+    end
+
+    # Creates a +Call+ object representing a new outbound call
+    def outgoing_call to_uri
+      call_id = generate_call_id
+      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
+      Call.new(self, call_id, @instance_id, @uri, @outbound_connection, to_uri)
+    end
+
     # Creates an SDP socket bound to an ephemeral port
     def setup_sdp
       @sdp_socket = UDPSocket.new
@@ -56,26 +107,6 @@ module Quaff
       add_contact_param "+sip.instance", "\"<urn:uuid:#{id}>\""
     end
     
-    # Retrieves the next unhandled call for this endpoint and returns
-    # a +Call+ object representing it
-    def incoming_call
-      begin
-        call_id = get_new_call_id
-      rescue Timeout::Error
-        raise "#{ @uri } timed out waiting for new incoming call"
-      end
-
-      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
-      Call.new(self, call_id, @instance_id, @uri)
-    end
-
-    # Creates a +Call+ object representing a new outbound call
-    def outgoing_call to_uri
-      call_id = generate_call_id
-      puts "Call-Id for endpoint on #{@local_port} is #{call_id}" if @msg_trace
-      Call.new(self, call_id, @instance_id, @uri, @outbound_connection, to_uri)
-    end
-
     # Not yet ready for use
     def create_client(uri, username, password, outbound_proxy, outbound_port=5060) # :nodoc:
     end
@@ -86,37 +117,6 @@ module Quaff
 
     # Not yet ready for use
     def create_aka_client(uri, username, key, op, outbound_proxy, outbound_port=5060) # :nodoc:
-    end
-
-    # Constructs a new endpoint
-    # Params:
-    # +uri+:: The SIP URI of this endpoint
-    # +username+:: The authentication username of this endpoint
-    # +password+:: The authentication password of this endpoint
-    # +local_port+:: The port this endpoint should bind to. Use
-    # ':anyport' to bind to an ephemeral port.
-    # +outbound_proxy+:: The outbound proxy where all requests should
-    # be directed. Optional, but it only makes sense to omit it when
-    # Quaff is emulating a server rather than a client.
-    # +outbound_port+:: The port of the outbound proxy
-    def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
-      @msg_log = Array.new
-      @uri = uri
-      @resolver = Resolv::DNS.new
-      @username = username
-      @password = password
-      @local_host = Utils::local_ip
-      @local_port = local_port
-      initialize_connection
-      if outbound_proxy
-        @outbound_connection = new_connection(outbound_proxy, outbound_port)
-      end
-      @hashes = []
-      @contact_params = {}
-      @contact_uri_params = {"transport" => transport, "ob" => true}
-      @terminated = false
-      initialize_queues
-      start
     end
 
     def contact_header

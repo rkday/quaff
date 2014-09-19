@@ -30,16 +30,16 @@ class Call
   def initialize(cxn,
                  cid,
                  instance_id=nil,
-                 uri=nil,
+                 own_uri=nil,
                  destination=nil,
-                 target_uri=nil)
+                 destination_uri=nil)
     @cxn = cxn
     setdest(destination, recv_from_this: true) if destination
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @instance_id = instance_id
     @cid = cid
-    set_default_headers cid, uri, target_uri
+    set_default_headers cid, uri, destination_uri
   end
 
   # Changes the branch parameter if the Via header, creating a new transaction
@@ -225,15 +225,43 @@ class Call
     recv_response code, true
   end
 
-  def send_response(code, phrase, body="", retrans=nil, headers={})
+  def send_response(code, phrase, options={})
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:same_tsx_as]
+      assoc_with_msg(options[:same_tsx_as])
+    end
+
     method = nil
     msg = build_message headers, body, :response, method, code, phrase
     send_something(msg, retrans)
   end
 
-  def send_request(method, body="", headers={})
+  def send_request(method, options={}))
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:same_tsx_as]
+      assoc_with_msg(options[:same_tsx_as])
+    end
+
+    if options[:new_tsx]
+      update_branch
+    end
+    
     msg = build_message headers, body, :request, method
-    send_something(msg, nil)
+    send_something(msg, retrans)
   end
 
   def end_call
