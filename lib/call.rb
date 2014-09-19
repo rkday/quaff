@@ -60,7 +60,7 @@ class Call
       uri = $1
     end
 
-    @dialog.target = uri
+    @dialog.target = uri unless uri.nil?
   end
 
   alias_method :set_dialog_target, :set_callee
@@ -71,7 +71,7 @@ class Call
     set_dialog_target msg.first_header("Contact")
 
     unless msg.all_headers("Record-Route").nil?
-      @routeset = msg.all_headers("Record-Route")
+      @dialog.routeset = msg.all_headers("Record-Route")
     end
 
     @dialog.get_peer_info msg.header("From")
@@ -83,7 +83,7 @@ class Call
     set_dialog_target msg.first_header("Contact")
 
     unless msg.all_headers("Record-Route").nil?
-        @routeset = msg.all_headers("Record-Route").reverse
+        @dialog.routeset = msg.all_headers("Record-Route").reverse
     end
 
     @dialog.get_peer_info msg.header("To")
@@ -208,8 +208,9 @@ class Call
       headers['Content-Type'] = "application/sdp"
     end
 
-    if options[:same_tsx_as]
-      assoc_with_msg(options[:same_tsx_as])
+    if options[:response_to]
+      assoc_with_msg(options[:response_to])
+      headers['CSeq'] ||= CSeq.new(options[:response_to].header("CSeq"))
     end
 
     method = nil
@@ -217,7 +218,7 @@ class Call
     send_something(msg, retrans)
   end
 
-  def send_request(method, options={}))
+  def send_request(method, options={})
     body = options[:body] || ""
     retrans = options[:retrans] || false
     headers = options[:headers] || {}
