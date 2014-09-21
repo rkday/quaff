@@ -5,6 +5,7 @@ require_relative './utils.rb'
 require_relative './sources.rb'
 require_relative './auth.rb'
 require_relative './message.rb'
+require_relative './sip_dialog.rb'
 
 module Quaff
   class CSeq # :nodoc:
@@ -29,17 +30,17 @@ class Call
 
   def initialize(cxn,
                  cid,
-                 instance_id=nil,
-                 uri=nil,
+                 my_uri,
+                 target_uri,
                  destination=nil,
-                 target_uri=nil)
+                 instance_id=nil)
     @cxn = cxn
     setdest(destination, recv_from_this: true) if destination
     @retrans = nil
     @t1, @t2 = 0.5, 32
     @instance_id = instance_id
-    @cid = cid
-    set_default_headers cid, uri, target_uri
+    @dialog = SipDialog.new cid, my_uri, target_uri
+    update_branch
   end
 
   # Changes the branch parameter if the Via header, creating a new transaction
@@ -59,32 +60,33 @@ class Call
       uri = $1
     end
 
-    @sip_destination = "#{uri}"
+    @dialog.target = uri unless uri.nil?
   end
+
+  alias_method :set_dialog_target, :set_callee
   
-  def create_dialog msg
-    if @in_dialog
-      return
-    end
+  def create_dialog_from_request msg
+    @dialog.established = true
 
-    @in_dialog = true
-
-    uri = msg.first_header("Contact")
-
-    if /<(.*?)>/ =~ uri
-      uri = $1
-    end
-
-    @sip_destination = uri
+    set_dialog_target msg.first_header("Contact")
 
     unless msg.all_headers("Record-Route").nil?
-      if msg.type == :request
-        @routeset = msg.all_headers("Record-Route")
-      else
-        @routeset = msg.all_headers("Record-Route").reverse
-      end
+      @dialog.routeset = msg.all_headers("Record-Route")
     end
 
+    @dialog.get_peer_info msg.header("From")
+  end
+
+  def create_dialog_from_response msg
+    @dialog.established = true
+
+    set_dialog_target msg.first_header("Contact")
+
+    unless msg.all_headers("Record-Route").nil?
+        @dialog.routeset = msg.all_headers("Record-Route").reverse
+    end
+
+    @dialog.get_peer_info msg.header("To")
   end
 
   # Sets the Source where messages in this call should be sent to by
@@ -113,17 +115,10 @@ class Call
       raise((msg.to_s || "Message is nil!"))
     end
 
-    unless @has_To_tag
-      @has_To_tag = true
-      tospec = ToSpec.new
-      tospec.parse(msg.header("To"))
-      tospec.params['tag'] = generate_random_tag
-      @last_To = tospec.to_s
-      @last_From = msg.header("From")
-    end
-
+    @dialog.cseq = CSeq.new(msg.header("CSeq")).num
+    
     if dialog_creating
-      create_dialog msg
+      create_dialog_from_request msg
     end
     msg
   end
@@ -176,22 +171,6 @@ class Call
       raise((msg.to_s || "Message is nil!"))
     end
 
-    if msg.type == :request
-      unless @has_To_tag
-        @has_To_tag = true
-        tospec = ToSpec.new
-        tospec.parse(msg.header("To"))
-        tospec.params['tag'] = generate_random_tag
-        @last_To = tospec.to_s
-        @last_From = msg.header("From")
-      end
-    else
-      if @in_dialog
-        @has_To_tag = true
-        @last_To = msg.header("To")
-      end    
-    end
-
     if dialog_creating
       create_dialog msg
     end
@@ -206,16 +185,11 @@ class Call
     end
     unless msg.type == :response \
       and Regexp.new(code) =~ msg.status_code
-      raise "Expected #{ code}, got #{msg.status_code || msg}"
+      raise "Expected #{code}, got #{msg.status_code || msg}"
     end
 
     if dialog_creating
-      create_dialog msg
-    end
-
-    if @in_dialog
-      @has_To_tag = true
-      @last_To = msg.header("To")
+      create_dialog_from_response msg
     end
 
     msg
@@ -225,24 +199,52 @@ class Call
     recv_response code, true
   end
 
-  def send_response(code, phrase, body="", retrans=nil, headers={})
+  def send_response(code, phrase, options={})
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:response_to]
+      assoc_with_msg(options[:response_to])
+      headers['CSeq'] ||= CSeq.new(options[:response_to].header("CSeq"))
+    end
+
     method = nil
     msg = build_message headers, body, :response, method, code, phrase
     send_something(msg, retrans)
   end
 
-  def send_request(method, body="", headers={})
+  def send_request(method, options={})
+    body = options[:body] || ""
+    retrans = options[:retrans] || false
+    headers = options[:headers] || {}
+    if options[:sdp_body]
+      body = options[:sdp_body]
+      headers['Content-Type'] = "application/sdp"
+    end
+
+    if options[:same_tsx_as]
+      assoc_with_msg(options[:same_tsx_as])
+    end
+
+    if options[:new_tsx]
+      update_branch
+    end
+    
     msg = build_message headers, body, :request, method
-    send_something(msg, nil)
+    send_something(msg, retrans)
   end
 
   def end_call
-    @cxn.mark_call_dead @cid
+    @cxn.mark_call_dead @dialog.call_id
   end
 
   def assoc_with_msg(msg)
     @last_Via = msg.all_headers("Via")
-    @last_CSeq = CSeq.new(msg.header("CSeq"))
   end
 
   def get_next_hop header
@@ -253,10 +255,9 @@ class Call
 
   private
   def recv_something
-    msg = @cxn.get_new_message @cid
+    msg = @cxn.get_new_message @dialog.call_id
     @retrans = nil
     @src = msg.source
-    set_callee msg.header("From")
     @last_Via = msg.headers["Via"]
     @last_CSeq = CSeq.new(msg.header("CSeq"))
     msg
@@ -265,19 +266,19 @@ class Call
   def calculate_cseq type, method
     if (type == :response)
       @last_CSeq.to_s
-    elsif (method == "ACK")
-      "#{@last_CSeq.num} ACK"
     else
-      @cseq_number = @cseq_number + 1
-      "#{@cseq_number} #{method}"
+      if (method != "ACK") and (method != "CANCEL")
+        @dialog.cseq += 1
+      end
+      "#{@dialog.cseq} #{method}"
     end
   end
 
   def build_message headers, body, type, method=nil, code=nil, phrase=nil
+    is_request = code.nil?
+
     defaults = {
-      "From" => @last_From,
-      "To" => @last_To,
-      "Call-ID" => @cid,
+      "Call-ID" => @dialog.call_id,
       "CSeq" => calculate_cseq(type, method),
       "Via" => @last_Via,
       "Max-Forwards" => "70",
@@ -286,17 +287,19 @@ class Call
       "Contact" => @cxn.contact_header
     }
 
-    is_request = code.nil?
     if is_request
-      defaults['Route'] = @routeset
+      defaults['From'] = @dialog.local_fromto
+      defaults['To'] = @dialog.peer_fromto
+      defaults['Route'] = @dialog.routeset
     else
-      defaults['Record-Route'] = @routeset
+      defaults['To'] = @dialog.local_fromto
+      defaults['From'] = @dialog.peer_fromto
+      defaults['Record-Route'] = @dialog.routeset
     end
 
     defaults.merge! headers
 
-    SipMessage.new(method, code, phrase, @sip_destination, body, defaults.merge!(headers)).to_s
-
+    SipMessage.new(method, code, phrase, @dialog.target, body, defaults.merge!(headers)).to_s
   end
 
   def send_something(msg, retrans)
@@ -307,7 +310,7 @@ class Call
         timer = @t1
         sleep timer
         while @retrans do
-          #puts "Retransmitting on call #{ @cid }"
+          #puts "Retransmitting on call #{ @dialog.call_id }"
           @cxn.send(msg, @src)
           timer *=2
           if timer < @t2 then
@@ -317,22 +320,6 @@ class Call
         end
       end
     end
-  end
-
-  def set_default_headers cid, uri, target_uri
-    @cseq_number = 1
-    @uri = uri
-    @last_From = "<#{uri}>;tag=" + generate_random_tag
-    @in_dialog = false
-    @has_To_tag = false
-    update_branch
-    @last_To = "<#{target_uri}>"
-    @sip_destination = target_uri
-    @routeset = []
-  end
-
-  def generate_random_tag
-    SecureRandom::hex
   end
 
 end
