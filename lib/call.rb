@@ -304,16 +304,16 @@ class Call
 
   def send_something(msg, retrans)
     @cxn.send_msg(msg, @src)
-    if retrans and (@transport == "UDP") then
+    if retrans and (@cxn.transport == "UDP") then
       @retrans = true
       Thread.new do
         timer = @t1
         sleep timer
         while @retrans do
           #puts "Retransmitting on call #{ @dialog.call_id }"
-          @cxn.send(msg, @src)
+          @cxn.send_msg(msg, @src)
           timer *=2
-          if timer < @t2 then
+          if timer > @t2 then
             raise "Too many retransmits!"
           end
           sleep timer
