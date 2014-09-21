@@ -1,3 +1,3 @@
-require_relative './call.rb'
-require_relative './endpoint.rb'
+require_relative './quaff/call.rb'
+require_relative './quaff/endpoint.rb'
 
