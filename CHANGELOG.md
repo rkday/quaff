@@ -1,3 +1,11 @@
+Version 0.8.0
+
+* Allow setting the local hostname in the Contact header
+* Use keyword parameters, not positional arguments, in the API
+* Improved retransmission support (retransmit requests, fix response retransmission, retransmit last message when receiving a retransmission)
+* Add an "ignore_responses" option to recv_response with a list of response codes to ignore
+* Enhance the dialog support
+
 Version 0.7.0
 
 * Fix various paarsing bugs, including allowing '-' in hostnames
