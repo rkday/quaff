@@ -26,7 +26,7 @@ module Quaff
   end
 
 class Call
-  attr_reader :cid
+  attr_reader :cid, :dialog
 
   def initialize(cxn,
                  cid,
