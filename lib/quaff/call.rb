@@ -43,18 +43,6 @@ class Call
     update_branch
   end
 
-  # Changes the branch parameter if the Via header, creating a new transaction
-  def update_branch via_hdr=nil
-    via_hdr ||= get_new_via_hdr
-    @last_Via = via_hdr
-  end
-
-  alias_method :new_transaction, :update_branch
-
-  def get_new_via_hdr
-    "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
-  end
-
   def set_callee uri
     if /<(.*?)>/ =~ uri
       uri = $1
@@ -65,30 +53,6 @@ class Call
 
   alias_method :set_dialog_target, :set_callee
   
-  def create_dialog_from_request msg
-    @dialog.established = true
-
-    set_dialog_target msg.first_header("Contact")
-
-    unless msg.all_headers("Record-Route").nil?
-      @dialog.routeset = msg.all_headers("Record-Route")
-    end
-
-    @dialog.get_peer_info msg.header("From")
-  end
-
-  def create_dialog_from_response msg
-    @dialog.established = true
-
-    set_dialog_target msg.first_header("Contact")
-
-    unless msg.all_headers("Record-Route").nil?
-        @dialog.routeset = msg.all_headers("Record-Route").reverse
-    end
-
-    @dialog.get_peer_info msg.header("To")
-  end
-
   # Sets the Source where messages in this call should be sent to by
   # default.
   #
@@ -103,7 +67,13 @@ class Call
     end
   end
 
-  def recv_request(method, dialog_creating=true)
+  # Receives a SIP request.
+  #
+  # Options:
+  #    :dialog_creating - whether the dialog state (peer tags, etc.)
+  #    should be updated with information from this request. Defaults to true.
+  def recv_request(method, options={})
+    dialog_creating = options[:dialog_creating] || true
     begin
       msg = recv_something
     rescue Timeout::Error
@@ -177,6 +147,15 @@ class Call
     msg
   end
 
+  # Receives a SIP response.
+  #
+  # Options:
+  #    :dialog_creating - whether the dialog state (peer tags, etc.)
+  #    should be updated with information from this response. Defaults
+  #    to false.
+  #    :ignore_responses - a list of status codes to ignore (e.g.
+  #    [100] will mean that 100 Tryings are ignored rather than
+  #    treated as unexpected).
   def recv_response(code, options={})
     dialog_creating = options[:dialog_creating] || false
     ignore_responses = options[:ignore_responses] || [] 
@@ -203,11 +182,19 @@ class Call
     msg
   end
 
-  def recv_response_and_create_dialog(code, options={})
-    options[:dialog_creating] = true
-    recv_response code, options
-  end
-
+  # Sends a SIP response with the given status code and reason phrase.
+  #
+  # Options:
+  #    :body - the SIP body to use.
+  #    :sdp_body - as :body, but an appropriate Content-Type header is
+  #    automatically added.
+  #    :response_to - a message to use the branch and CSeq from.
+  #    Useful for responding to an INVITE after handling a CANCEL
+  #    transaction.
+  #    :retrans - whether or not to retransmit this periodically until
+  #    the next message is received. Defaults to false.
+  #    :headers - a map of headers to use in this message
+  
   def send_response(code, phrase, options={})
     body = options[:body] || ""
     retrans = options[:retrans] || false
@@ -227,10 +214,26 @@ class Call
     send_something(msg, retrans)
   end
 
+  # Sends a SIP request with the given method.
+  #
+  # Options:
+  #    :body - the SIP body to use.
+  #    :sdp_body - as :body, but an appropriate Content-Type header is
+  #    automatically added.
+  #    :new_tsx - whether to generate a new branch ID. Defaults to true.
+  #    :same_tsx_as - a message to use the branch and CSeq from.
+  #    Useful for ACKing to an INVITE after handling a PRACK
+  #    transaction.
+  #    :retrans - whether or not to retransmit this periodically until
+  #    the next message is received. Defaults to true unless new_tsx is
+  #    false.
+  #    :headers - a map of headers to use in this message
   def send_request(method, options={})
     body = options[:body] || ""
-    retrans = options[:retrans] || false
     headers = options[:headers] || {}
+    new_tsx = options[:new_tsx] || true
+    retrans = options[:retrans] || new_tsx
+
     if options[:sdp_body]
       body = options[:sdp_body]
       headers['Content-Type'] = "application/sdp"
@@ -240,7 +243,7 @@ class Call
       assoc_with_msg(options[:same_tsx_as])
     end
 
-    if options[:new_tsx]
+    if new_tsx
       update_branch
     end
     
@@ -252,10 +255,6 @@ class Call
     @cxn.mark_call_dead @dialog.call_id
   end
 
-  def assoc_with_msg(msg)
-    @last_Via = msg.all_headers("Via")
-  end
-
   def get_next_hop header
     /<sip:(.+@)?(.+):(\d+);(.*)>/ =~ header
     sock = TCPSocket.new $2, $3
@@ -263,6 +262,22 @@ class Call
   end
 
   private
+  def assoc_with_msg(msg)
+    @last_Via = msg.all_headers("Via")
+  end
+
+  # Changes the branch parameter if the Via header, creating a new transaction
+  def update_branch via_hdr=nil
+    via_hdr ||= get_new_via_hdr
+    @last_Via = via_hdr
+  end
+
+  alias_method :new_transaction, :update_branch
+
+  def get_new_via_hdr
+    "SIP/2.0/#{@cxn.transport} #{Quaff::Utils.local_ip}:#{@cxn.local_port};rport;branch=#{Quaff::Utils::new_branch}"
+  end
+
   def recv_something
     msg = @cxn.get_new_message @dialog.call_id
     @retrans = nil
@@ -331,5 +346,28 @@ class Call
     end
   end
 
+  def create_dialog_from_request msg
+    @dialog.established = true
+
+    set_dialog_target msg.first_header("Contact")
+
+    unless msg.all_headers("Record-Route").nil?
+      @dialog.routeset = msg.all_headers("Record-Route")
+    end
+
+    @dialog.get_peer_info msg.header("From")
+  end
+
+  def create_dialog_from_response msg
+    @dialog.established = true
+
+    set_dialog_target msg.first_header("Contact")
+
+    unless msg.all_headers("Record-Route").nil?
+        @dialog.routeset = msg.all_headers("Record-Route").reverse
+    end
+
+    @dialog.get_peer_info msg.header("To")
+  end
 end
 end
