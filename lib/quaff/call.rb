@@ -36,7 +36,8 @@ class Call
                  instance_id=nil)
     @cxn = cxn
     setdest(destination, recv_from_this: true) if destination
-    @retrans = nil
+    @current_retrans = nil
+    @retrans_keys = {}
     @t1, @t2 = 0.5, 32
     @instance_id = instance_id
     @dialog = SipDialog.new cid, my_uri, target_uri
@@ -225,14 +226,23 @@ class Call
   #    Useful for ACKing to an INVITE after handling a PRACK
   #    transaction.
   #    :retrans - whether or not to retransmit this periodically until
-  #    the next message is received. Defaults to true unless new_tsx is
-  #    false.
+  #    the next message is received. Defaults to true unless the
+  #    method is ACK.
   #    :headers - a map of headers to use in this message
   def send_request(method, options={})
     body = options[:body] || ""
     headers = options[:headers] || {}
-    new_tsx = options[:new_tsx] || true
-    retrans = options[:retrans] || new_tsx
+    new_tsx = options[:new_tsx].nil? ? true : options[:new_tsx]
+    retrans =
+      if options[:retrans].nil?
+        if method == "ACK"
+          false
+        else
+          true
+        end
+      else
+        options[:retrans]
+      end
 
     if options[:sdp_body]
       body = options[:sdp_body]
@@ -280,7 +290,7 @@ class Call
 
   def recv_something
     msg = @cxn.get_new_message @dialog.call_id
-    @retrans = nil
+    @retrans_keys.delete @current_retrans
     @src = msg.source
     @last_Via = msg.headers["Via"]
     @last_CSeq = CSeq.new(msg.header("CSeq"))
@@ -329,12 +339,14 @@ class Call
   def send_something(msg, retrans)
     @cxn.send_msg(msg, @src)
     if retrans and (@cxn.transport == "UDP") then
-      @retrans = true
+      key = SecureRandom::hex
+      @current_retrans = key
+      @retrans_keys[key] = true
       Thread.new do
         timer = @t1
         sleep timer
-        while @retrans do
-          #puts "Retransmitting on call #{ @dialog.call_id }"
+        while @retrans_keys[key] do
+          #puts "Retransmitting #{ msg } on call #{ @dialog.call_id }"
           @cxn.send_msg(msg, @src)
           timer *=2
           if timer > @t2 then
