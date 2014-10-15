@@ -25,8 +25,9 @@ module Quaff
     # be directed. Optional, but it only makes sense to omit it when
     # Quaff is emulating a server rather than a client.
     # +outbound_port+:: The port of the outbound proxy
-    def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060)
+    def initialize(uri, username, password, local_port, outbound_proxy=nil, outbound_port=5060, msg_trace=false)
       @msg_log = Array.new
+      @msg_trace = msg_trace
       @uri = uri
       @resolver = Resolv::DNS.new
       @username = username
