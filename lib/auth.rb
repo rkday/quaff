@@ -3,7 +3,7 @@ require 'base64'
 module Quaff
   module Auth #:nodoc:
     def Auth.gen_nonce auth_pairs, username, passwd, method, sip_uri, ha1=""
-      if ha == ""
+      if ha1.empty?
         a1 = username + ":" + auth_pairs["realm"] + ":" + passwd
         ha1 = Digest::MD5::hexdigest(a1)
       end
