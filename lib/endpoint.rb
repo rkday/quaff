@@ -105,6 +105,7 @@ module Quaff
       @resolver = Resolv::DNS.new
       @username = username
       @password = password
+      @local_host = Utils::local_ip
       @local_port = local_port
       initialize_connection
       if outbound_proxy
