@@ -11,5 +11,5 @@ Gem::Specification.new do |s|
   s.add_runtime_dependency "abnf-parsing", '>= 0.2.0'
   s.homepage    =
     'http://github.com/rkday/quaff'
-  s.license       = 'GPL3'
+  s.licenses       = ['GPL3', 'MIT']
 end
