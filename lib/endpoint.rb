@@ -352,7 +352,7 @@ module Quaff
     def recv_msg
       data, addrinfo = @cxn.recvfrom(65535)
       @parser.parse_start
-      msg = @parser.parse_from_io(StringIO(data))
+      msg = @parser.parse_from_io(StringIO.new(data))
       queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
     end
   end
