@@ -25,7 +25,7 @@ module Quaff
   end
 
 class Call
-  attr_reader :cid
+  attr_reader :cid, :last_To, :last_From, :sip_destination
 
   def initialize(cxn,
                  cid,
