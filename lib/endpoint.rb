@@ -4,10 +4,10 @@ require 'thread'
 require 'timeout'
 require 'resolv'
 require 'securerandom'
-#require 'milenage'
 require_relative './sip_parser.rb'
 require_relative './sources.rb'
 require 'digest/md5'
+require 'stringio'
 
 module Quaff
   class BaseEndpoint
@@ -311,12 +311,8 @@ module Quaff
     end
 
     def recv_msg_from_sock(sock)
-      @parser.parse_start
-      msg = nil
-      while msg.nil? and not sock.closed? do
-        line = sock.gets
-        msg = @parser.parse_partial line
-      end
+      msg = @parser.parse_from_io(sock)
+      
       queue_msg msg, TCPSourceFromSocket.new(sock)
     end
   end
@@ -352,10 +348,10 @@ module Quaff
     end
 
     def recv_msg
-        data, addrinfo = @cxn.recvfrom(65535)
-        @parser.parse_start
-        msg = @parser.parse_partial(data)
-        queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
+      data, addrinfo = @cxn.recvfrom(65535)
+      @parser.parse_start
+      msg = @parser.parse_from_io(StringIO(data))
+      queue_msg msg, UDPSourceFromAddrinfo.new(addrinfo) unless msg.nil?
     end
   end
 
