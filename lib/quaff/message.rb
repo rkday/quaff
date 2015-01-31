@@ -8,7 +8,7 @@ class SipMessage
     @headers = headers
     @method, @status_code, @reason, @requri = method, status_code, reason, req_uri
     @body = body
-    @headers['Content-Length'] = [body.length]
+    @headers['Content-Length'] = [body.length.to_s]
   end
 
   def [] key
