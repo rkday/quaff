@@ -35,7 +35,7 @@ module Quaff
       elsif udp and msg.header("Content-Length").nil?
         add_body io.read(1500)
       end        
-      @msg
+      msg
     end
 
     def parse_start
