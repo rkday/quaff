@@ -192,7 +192,7 @@ module Quaff
 
     # Creates a random Call-ID
     def generate_call_id
-      call_id = SecureRandom::hex
+      call_id = SecureRandom::hex[0..8]
       add_call_id call_id
       return call_id
     end

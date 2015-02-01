@@ -11,7 +11,7 @@ module Quaff
       @call_id = call_id
       @established = false
       @routeset = []
-      @local_tag = SecureRandom::hex
+      @local_tag = SecureRandom::hex[0..5]
       @peer_uri = peer_uri
       @target = peer_uri
       @local_uri = local_uri

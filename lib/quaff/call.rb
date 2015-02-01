@@ -317,7 +317,7 @@ class Call
       "Via" => @last_Via,
       "Max-Forwards" => "70",
       "Content-Length" => "0",
-      "User-Agent" => "Quaff SIP Scripting Engine",
+      "User-Agent" => "Quaff",
       "Contact" => @cxn.contact_header
     }
 

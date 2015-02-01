@@ -1,5 +1,6 @@
 require 'socket'
 require 'system/getifaddrs'
+require 'securerandom'
 
 module Quaff
 
@@ -20,7 +21,7 @@ def Utils.pid
 end
 
 def Utils.new_branch
-    "z9hG4bK#{Time.new.to_f}"
+    "z9hG4bK#{SecureRandom::hex[0..5]}"
 end
 
 def Utils.paramhash_to_str params
