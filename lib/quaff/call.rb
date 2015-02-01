@@ -116,7 +116,6 @@ class Call
     end
 
     found_match = false
-    dialog_creating = nil
     
     possible_messages.each do
       | what, this_dialog_creating |
@@ -133,7 +132,12 @@ class Call
         end
 
       if found_match
-        dialog_creating = this_dialog_creating
+        if this_dialog_creating && (type == :request)
+          create_dialog_from_request msg
+        end
+        if this_dialog_creating && (type == :response)
+          create_dialog_from_response msg
+        end
         break
       end
     end
@@ -142,9 +146,6 @@ class Call
       raise((msg.to_s || "Message is nil!"))
     end
 
-    if dialog_creating
-      create_dialog msg
-    end
     msg
   end
 
