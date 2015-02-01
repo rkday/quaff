@@ -226,7 +226,7 @@ module Quaff
     end
 
     def is_retransmission? msg
-      @hashes.include? Digest::MD5.hexdigest(msg.to_s)
+      @hashes.include? msg.unique_key
     end
 
     def queue_msg(msg, source)

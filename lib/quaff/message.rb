@@ -1,3 +1,5 @@
+require 'digest/md5'
+
 module Quaff
 class SipMessage
   attr_accessor :method, :requri, :reason, :status_code, :headers, :source
@@ -19,6 +21,17 @@ class SipMessage
     end
   end
 
+  def unique_key
+    via = if @headers['Via']
+            @headers['Via'][-1]
+          end
+
+    contact = header("Contact")
+    cid = header("Call-ID")
+    s = "#{via} #{@method} #{@status_code} #{contact} #{cid} #{@requri}"
+    Digest::MD5.hexdigest(s)
+  end
+  
   def type
     if @method
       :request
