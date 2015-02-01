@@ -233,7 +233,18 @@ class Call
   def send_request(method, options={})
     body = options[:body] || ""
     headers = options[:headers] || {}
-    new_tsx = options[:new_tsx].nil? ? true : options[:new_tsx]
+    new_tsx = if options[:new_tsx].nil?
+                # new_tsx was not given. Default it to true, unless
+                # same_tsx_as was given.
+                unless options[:same_tsx_as]
+                  true
+                else
+                  false
+                end
+              else
+                # new_tsx was given, use that value.
+                options[:new_tsx]
+              end
     retrans =
       if options[:retrans].nil?
         if method == "ACK"
