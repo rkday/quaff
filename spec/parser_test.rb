@@ -141,4 +141,11 @@ describe Quaff::ToSpec do
     expect(to.to_s).to eq(header)
   end
 
+  it "parses a tel: URI" do
+    header = '"Alice" <tel:1234>;tag=abcd'
+    to = Quaff::ToSpec.new
+    expect(to.parse header).to eq(true)
+    expect(to.uri).to eq("tel:1234")
+  end
+
 end
