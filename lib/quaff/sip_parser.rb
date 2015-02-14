@@ -195,8 +195,13 @@ module Quaff
                  uri_parameters)
     end
 
+    def tel_uri
+      Concat.new(Literal.new("tel:"),
+                 Repetition.new([:at_least, 1], Digit.new))
+    end
+
     def addr_spec
-      sip_uri
+      Alternate.new(sip_uri, tel_uri)
     end
 
     def wsp
