@@ -9,7 +9,7 @@ module Quaff
       end
       a2 = method + ":" + sip_uri
       ha2 = Digest::MD5::hexdigest(a2)
-      if !qop.empty?
+      if qop == "auth"
         digest = Digest::MD5.hexdigest(ha1 + ":" + auth_pairs["nonce"] + ":" + nc.to_s(16).rjust(8, "0") + ":" + cnonce + ":" + qop + ":" + ha2)
       else
         digest = Digest::MD5.hexdigest(ha1 + ":" + auth_pairs["nonce"] + ":" + ha2)
